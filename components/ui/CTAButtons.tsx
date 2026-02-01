@@ -2,11 +2,7 @@
 
 import { useState } from "react";
 
-interface CTAButtonsProps {
-  sessionId?: string | null;
-}
-
-export function CTAButtons({ sessionId }: CTAButtonsProps) {
+export function CTAButtons() {
   const [showEmailModal, setShowEmailModal] = useState(false);
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
@@ -17,10 +13,26 @@ export function CTAButtons({ sessionId }: CTAButtonsProps) {
 
     setStatus("loading");
     try {
+      // Get session ID from ChatContainer
+      let currentSessionId: string | null = null;
+      await new Promise<void>((resolve) => {
+        const event = new CustomEvent("knox-get-session-id", {
+          detail: {
+            callback: (id: string | null) => {
+              currentSessionId = id;
+              resolve();
+            },
+          },
+        });
+        window.dispatchEvent(event);
+        // Resolve anyway after short timeout if no response
+        setTimeout(resolve, 100);
+      });
+
       const res = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, sessionId, source: "report_request" }),
+        body: JSON.stringify({ email, sessionId: currentSessionId, source: "report_request" }),
       });
 
       if (res.ok) {

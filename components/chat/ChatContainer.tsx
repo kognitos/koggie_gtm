@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Message } from "./MessageBubble";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
@@ -15,6 +15,19 @@ export function ChatContainer() {
   const [error, setError] = useState<string | null>(null);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+
+  // Expose session ID globally for other components (like lead capture)
+  useEffect(() => {
+    const handleGetSessionId = (e: CustomEvent) => {
+      if (e.detail?.callback) {
+        e.detail.callback(sessionIdRef.current);
+      }
+    };
+    window.addEventListener("knox-get-session-id", handleGetSessionId as EventListener);
+    return () => {
+      window.removeEventListener("knox-get-session-id", handleGetSessionId as EventListener);
+    };
+  }, []);
 
   const sendMessage = useCallback(
     async (content: string) => {
