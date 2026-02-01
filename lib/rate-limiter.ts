@@ -1,4 +1,4 @@
-import { kv } from "@vercel/kv";
+import { getSupabase, isSupabaseConfigured } from "./supabase";
 
 const RATE_LIMIT = 50; // messages per hour
 const WINDOW_MS = 60 * 60 * 1000; // 1 hour in milliseconds
@@ -10,17 +10,54 @@ interface RateLimitResult {
 }
 
 export async function checkRateLimit(ip: string): Promise<RateLimitResult> {
-  const key = `rate-limit:${ip}`;
   const now = Date.now();
 
-  try {
-    // Get current state
-    const data = await kv.get<{ count: number; resetAt: number }>(key);
+  // Skip rate limiting if Supabase is not configured (local dev)
+  if (!isSupabaseConfigured()) {
+    console.warn("Rate limiting disabled: Supabase not configured");
+    return {
+      success: true,
+      remaining: RATE_LIMIT,
+      resetAt: now + WINDOW_MS,
+    };
+  }
 
-    if (!data || now > data.resetAt) {
-      // New window - set initial count
-      const resetAt = now + WINDOW_MS;
-      await kv.set(key, { count: 1, resetAt }, { px: WINDOW_MS });
+  const supabase = getSupabase();
+  if (!supabase) {
+    return {
+      success: true,
+      remaining: RATE_LIMIT,
+      resetAt: now + WINDOW_MS,
+    };
+  }
+
+  try {
+    // Get current rate limit record for this IP
+    const { data: existing, error: fetchError } = await supabase
+      .from("rate_limits")
+      .select("*")
+      .eq("ip_address", ip)
+      .single();
+
+    if (fetchError && fetchError.code !== "PGRST116") {
+      // PGRST116 = no rows found, which is fine
+      throw fetchError;
+    }
+
+    const resetAt = now + WINDOW_MS;
+
+    // No existing record or window expired - create new
+    if (!existing || now > new Date(existing.reset_at).getTime()) {
+      const { error: upsertError } = await supabase
+        .from("rate_limits")
+        .upsert({
+          ip_address: ip,
+          count: 1,
+          reset_at: new Date(resetAt).toISOString(),
+        });
+
+      if (upsertError) throw upsertError;
+
       return {
         success: true,
         remaining: RATE_LIMIT - 1,
@@ -28,27 +65,32 @@ export async function checkRateLimit(ip: string): Promise<RateLimitResult> {
       };
     }
 
-    if (data.count >= RATE_LIMIT) {
-      // Rate limit exceeded
+    // Check if rate limit exceeded
+    if (existing.count >= RATE_LIMIT) {
       return {
         success: false,
         remaining: 0,
-        resetAt: data.resetAt,
+        resetAt: new Date(existing.reset_at).getTime(),
       };
     }
 
     // Increment count
-    const newCount = data.count + 1;
-    await kv.set(key, { count: newCount, resetAt: data.resetAt }, { px: data.resetAt - now });
+    const newCount = existing.count + 1;
+    const { error: updateError } = await supabase
+      .from("rate_limits")
+      .update({ count: newCount })
+      .eq("ip_address", ip);
+
+    if (updateError) throw updateError;
 
     return {
       success: true,
       remaining: RATE_LIMIT - newCount,
-      resetAt: data.resetAt,
+      resetAt: new Date(existing.reset_at).getTime(),
     };
   } catch (error) {
-    // If KV is not available (local dev), allow request
-    console.warn("Rate limiting unavailable:", error);
+    // If Supabase fails, allow request but log the error
+    console.error("Rate limiting error:", error);
     return {
       success: true,
       remaining: RATE_LIMIT,

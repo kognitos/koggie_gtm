@@ -7,6 +7,7 @@ An AI-powered chat interface that acts as a knowledgeable sales representative f
 - **Intelligent Sales Conversations**: Powered by Claude, trained on Kognitos marketing content
 - **Streaming Responses**: Real-time message streaming for a natural chat experience
 - **Rate Limiting**: IP-based throttling (50 messages/hour) to prevent abuse
+- **Chat Session Recording**: All conversations saved to Supabase for analytics
 - **Kognitos Branding**: Dark theme with signature yellow accents, IBM Plex Mono typography
 - **Mobile Responsive**: Works seamlessly on all device sizes
 
@@ -15,7 +16,7 @@ An AI-powered chat interface that acts as a knowledgeable sales representative f
 - **Framework**: Next.js 14 (App Router)
 - **AI**: Anthropic Claude SDK
 - **Styling**: Tailwind CSS v4
-- **Rate Limiting**: Vercel KV (serverless Redis)
+- **Rate Limiting**: Supabase (Postgres)
 - **Deployment**: Vercel
 
 ## Getting Started
@@ -81,18 +82,38 @@ git push origin main
 3. Add environment variables:
    - `ANTHROPIC_API_KEY`: Your Anthropic API key
 
-### 3. Add Vercel KV (for rate limiting)
+### 3. Add Supabase (for rate limiting)
 
 1. In your Vercel project dashboard, go to **Storage**
-2. Click **Create** → **KV**
-3. Follow the setup wizard
-4. The `KV_REST_API_URL` and `KV_REST_API_TOKEN` will be automatically added
+2. Click **Create Database** → Select **Supabase** from Marketplace
+3. Follow the setup wizard to create a Postgres database
+4. The `SUPABASE_URL` and `SUPABASE_ANON_KEY` will be automatically added
+5. Go to your Supabase dashboard → **SQL Editor**
+6. Run the SQL from `supabase/schema.sql` to create the rate_limits table
 
 ## Rate Limiting
 
-The application limits users to **50 messages per hour** per IP address. This is handled by Vercel KV in production.
+The application limits users to **50 messages per hour** per IP address. This is handled by Supabase in production.
 
-In development (without KV configured), rate limiting is disabled and all requests are allowed.
+In development (without Supabase configured), rate limiting is disabled and all requests are allowed.
+
+## Chat Session Analytics
+
+All chat sessions are recorded in Supabase with:
+- **chat_sessions**: Session metadata (IP, user agent, timestamps, message count)
+- **chat_messages**: Individual messages with role, content, and timestamps
+
+Query examples:
+```sql
+-- Recent sessions with message counts
+SELECT * FROM chat_sessions ORDER BY started_at DESC LIMIT 50;
+
+-- All messages from a session
+SELECT * FROM chat_messages WHERE session_id = 'uuid-here' ORDER BY created_at;
+
+-- Daily session counts
+SELECT DATE(started_at), COUNT(*) FROM chat_sessions GROUP BY DATE(started_at);
+```
 
 ## Customization
 

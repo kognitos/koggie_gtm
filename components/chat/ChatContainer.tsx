@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { Message } from "./MessageBubble";
 import { MessageList } from "./MessageList";
 import { ChatInput } from "./ChatInput";
@@ -11,6 +11,7 @@ export function ChatContainer() {
   const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null);
   const [remaining, setRemaining] = useState<number | undefined>(undefined);
   const [error, setError] = useState<string | null>(null);
+  const sessionIdRef = useRef<string | null>(null);
 
   const sendMessage = useCallback(async (content: string) => {
     setError(null);
@@ -44,6 +45,7 @@ export function ChatContainer() {
             role: m.role,
             content: m.content,
           })),
+          sessionId: sessionIdRef.current,
         }),
       });
 
@@ -92,6 +94,13 @@ export function ChatContainer() {
 
             try {
               const parsed = JSON.parse(data);
+              
+              // Check for session ID (sent at start of new sessions)
+              if (parsed.sessionId) {
+                sessionIdRef.current = parsed.sessionId;
+                continue;
+              }
+              
               if (parsed.content) {
                 fullContent += parsed.content;
                 setMessages((prev) =>
