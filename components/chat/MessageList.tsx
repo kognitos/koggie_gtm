@@ -35,43 +35,11 @@ export function MessageList({
           />
         ))
       )}
-      {isLoading && !streamingMessageId && <TypingIndicator />}
-      {toolStatus && <ToolStatusIndicator status={toolStatus} />}
+      {(isLoading || toolStatus) && !streamingMessageId && (
+        <TypingIndicator toolStatus={toolStatus} />
+      )}
       <div ref={bottomRef} />
     </div>
-  );
-}
-
-function ToolStatusIndicator({ status }: { status: string }) {
-  return (
-    <div className="flex gap-3 animate-fade-in">
-      <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-[var(--kognitos-gray-800)]">
-        <SearchIcon />
-      </div>
-      <div className="flex items-center gap-2 py-2 px-3 bg-[var(--kognitos-gray-900)] rounded-lg border border-[var(--kognitos-gray-700)]">
-        <span className="w-2 h-2 rounded-full bg-[var(--kognitos-yellow)] animate-pulse" />
-        <span className="text-sm text-[var(--kognitos-gray-400)]">{status}</span>
-      </div>
-    </div>
-  );
-}
-
-function SearchIcon() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className="text-[var(--kognitos-yellow)]"
-    >
-      <circle cx="11" cy="11" r="8" />
-      <path d="m21 21-4.3-4.3" />
-    </svg>
   );
 }
 
@@ -105,7 +73,24 @@ function WelcomeMessage() {
         <SuggestionButton text="What finance processes can you automate?" />
         <SuggestionButton text="How is this different from RPA?" />
       </div>
+      <ConsentNotice />
     </div>
+  );
+}
+
+function ConsentNotice() {
+  return (
+    <p className="mt-8 text-xs text-[var(--kognitos-gray-500)] max-w-md">
+      This conversation is recorded to improve our service.{" "}
+      <a
+        href="https://kognitos.com/privacy"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="underline hover:text-[var(--kognitos-gray-400)] transition-colors"
+      >
+        Privacy Policy
+      </a>
+    </p>
   );
 }
 
