@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import Anthropic from "@anthropic-ai/sdk";
-import { getSupabaseClient } from "./supabase";
+import { getSupabase } from "./supabase";
 
 const CONTENT_DIR = path.join(process.cwd(), "content");
 const INDEX_PATH = path.join(process.cwd(), "content-index.json");
@@ -279,7 +279,7 @@ export async function executeCaptureLead(
       return "Error: That doesn't look like a valid email address. Could you double-check it?";
     }
 
-    const supabase = getSupabaseClient();
+    const supabase = getSupabase();
     if (!supabase) {
       console.error("Supabase client not available for lead capture");
       return "I've noted your interest. Our team will follow up soon.";
