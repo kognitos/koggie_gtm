@@ -94,12 +94,12 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
                   </em>
                 ),
                 code: ({ children }) => (
-                  <code className="px-1.5 py-0.5 bg-[var(--kognitos-gray-800)] text-[var(--kognitos-yellow)] rounded text-xs font-mono">
+                  <code className="px-1.5 py-0.5 bg-[var(--kognitos-gray-800)] text-[var(--kognitos-yellow)] rounded text-xs" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
                     {children}
                   </code>
                 ),
                 pre: ({ children }) => (
-                  <pre className="bg-[var(--kognitos-gray-800)] rounded-lg p-3 overflow-x-auto mb-3 last:mb-0">
+                  <pre className="bg-[var(--kognitos-gray-800)] rounded-lg p-3 overflow-x-auto mb-3 last:mb-0 text-sm" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
                     {children}
                   </pre>
                 ),
