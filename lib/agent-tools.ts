@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import Anthropic from "@anthropic-ai/sdk";
+import { getSupabaseClient } from "./supabase";
 
 const CONTENT_DIR = path.join(process.cwd(), "content");
 const INDEX_PATH = path.join(process.cwd(), "content-index.json");
@@ -85,6 +86,30 @@ export const tools: Anthropic.Tool[] = [
         },
       },
       required: ["filepath"],
+    },
+  },
+  {
+    name: "capture_lead",
+    description:
+      "Capture a prospect's email address. Use this when: (1) the user explicitly asks for a summary or report of the conversation to be sent to them, (2) the user wants someone to reach out about a demo or follow-up, or (3) the user volunteers their email. NEVER ask for email unprompted—only use when the user initiates.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        email: {
+          type: "string",
+          description: "The user's email address",
+        },
+        reason: {
+          type: "string",
+          enum: ["report_request", "demo_request", "follow_up", "general_interest"],
+          description: "Why the user provided their email",
+        },
+        context: {
+          type: "string",
+          description: "Brief note about what they're interested in (e.g., 'AP automation for healthcare')",
+        },
+      },
+      required: ["email", "reason"],
     },
   },
 ];
@@ -241,11 +266,65 @@ export function executeReadFile(filepath: string): string {
   }
 }
 
+export async function executeCaptureLead(
+  email: string,
+  reason: string,
+  context: string | undefined,
+  sessionId: string | undefined
+): Promise<string> {
+  try {
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return "Error: That doesn't look like a valid email address. Could you double-check it?";
+    }
+
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      console.error("Supabase client not available for lead capture");
+      return "I've noted your interest. Our team will follow up soon.";
+    }
+
+    const { error } = await supabase.from("leads").insert([
+      {
+        email,
+        session_id: sessionId || null,
+        source: reason,
+        metadata: {
+          context: context || null,
+          captured_via: "chat",
+        },
+      },
+    ]);
+
+    if (error) {
+      console.error("Error inserting lead:", error);
+      return "I've noted your interest. Our team will follow up soon.";
+    }
+
+    // Return appropriate confirmation based on reason
+    switch (reason) {
+      case "report_request":
+        return `Got it. I'll send a summary of our conversation to ${email}.`;
+      case "demo_request":
+        return `Thanks. Someone from our team will reach out to ${email} to schedule a demo.`;
+      case "follow_up":
+        return `Noted. We'll follow up at ${email} with more information.`;
+      default:
+        return `Thanks. We'll be in touch at ${email}.`;
+    }
+  } catch (error) {
+    console.error("Error capturing lead:", error);
+    return "I've noted your interest. Our team will follow up soon.";
+  }
+}
+
 // Execute a tool by name
-export function executeTool(
+export async function executeTool(
   name: string,
-  input: Record<string, unknown>
-): string {
+  input: Record<string, unknown>,
+  sessionId?: string
+): Promise<string> {
   switch (name) {
     case "list_files":
       return executeListFiles(input.category as string | undefined);
@@ -253,6 +332,13 @@ export function executeTool(
       return executeSearchContent(input.query as string);
     case "read_file":
       return executeReadFile(input.filepath as string);
+    case "capture_lead":
+      return await executeCaptureLead(
+        input.email as string,
+        input.reason as string,
+        input.context as string | undefined,
+        sessionId
+      );
     default:
       return `Unknown tool: ${name}`;
   }

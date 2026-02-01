@@ -114,9 +114,10 @@ export async function POST(request: NextRequest) {
                 controller.enqueue(encoder.encode(`data: ${toolStatus}\n\n`));
 
                 // Execute the tool
-                const toolResult = executeTool(
+                const toolResult = await executeTool(
                   block.name,
-                  block.input as Record<string, unknown>
+                  block.input as Record<string, unknown>,
+                  sessionId
                 );
 
                 // Add assistant message with tool use and tool result to continue conversation

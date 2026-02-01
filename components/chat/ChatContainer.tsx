@@ -126,6 +126,7 @@ export function ChatContainer() {
                     list_files: "Checking available documents...",
                     search_content: "Searching documents...",
                     read_file: "Reading document...",
+                    capture_lead: "Saving your info...",
                   };
                   setToolStatus(friendlyNames[toolName] || "Thinking...");
                   continue;
