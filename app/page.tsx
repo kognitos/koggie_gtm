@@ -14,10 +14,10 @@ export default function Home() {
             <Logo size={32} />
             <div>
               <h1 className="text-sm font-semibold text-[var(--kognitos-white)]">
-                Kognitos
+                Knox
               </h1>
               <p className="text-xs text-[var(--kognitos-gray-400)]">
-                AI Sales Assistant
+                Kognitos Product Specialist
               </p>
             </div>
           </div>
