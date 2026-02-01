@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
+import Anthropic from "@anthropic-ai/sdk";
 import { anthropic, CLAUDE_MODEL, SALES_SYSTEM_PROMPT } from "@/lib/claude";
 import { checkRateLimit, formatRetryAfter } from "@/lib/rate-limiter";
-import { getMarketingContent } from "@/lib/content-loader";
 import { createChatSession, saveChatMessage } from "@/lib/supabase";
+import { tools, executeTool } from "@/lib/agent-tools";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -23,18 +24,15 @@ export async function POST(request: NextRequest) {
     const rateLimitResult = await checkRateLimit(ip);
 
     if (!rateLimitResult.success) {
-      return new Response(
-        JSON.stringify({ error: "Rate limit exceeded" }),
-        {
-          status: 429,
-          headers: {
-            "Content-Type": "application/json",
-            "Retry-After": formatRetryAfter(rateLimitResult.resetAt).toString(),
-            "X-RateLimit-Remaining": "0",
-            "X-RateLimit-Reset": rateLimitResult.resetAt.toString(),
-          },
-        }
-      );
+      return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": formatRetryAfter(rateLimitResult.resetAt).toString(),
+          "X-RateLimit-Remaining": "0",
+          "X-RateLimit-Reset": rateLimitResult.resetAt.toString(),
+        },
+      });
     }
 
     // Parse request body
@@ -57,7 +55,7 @@ export async function POST(request: NextRequest) {
     // Create or use existing session
     let sessionId = existingSessionId;
     if (!sessionId) {
-      sessionId = await createChatSession(ip, userAgent) || undefined;
+      sessionId = (await createChatSession(ip, userAgent)) || undefined;
     }
 
     // Get the latest user message to save
@@ -66,30 +64,15 @@ export async function POST(request: NextRequest) {
       await saveChatMessage(sessionId, "user", latestUserMessage.content);
     }
 
-    // Load marketing content
-    const marketingContent = getMarketingContent();
+    // Build messages for Claude API
+    const claudeMessages: Anthropic.MessageParam[] = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
 
-    // Build system prompt with marketing content
-    const fullSystemPrompt = `${SALES_SYSTEM_PROMPT}
-
-${marketingContent}`;
-
-    // Create streaming response
-    const stream = await anthropic.messages.stream({
-      model: CLAUDE_MODEL,
-      max_tokens: 1024,
-      system: fullSystemPrompt,
-      messages: messages.map((m) => ({
-        role: m.role,
-        content: m.content,
-      })),
-    });
-
-    // Collect full response for saving to DB
-    let fullResponse = "";
-
-    // Create a readable stream for the response
+    // Create streaming response with tool use support
     const encoder = new TextEncoder();
+
     const readableStream = new ReadableStream({
       async start(controller) {
         try {
@@ -99,14 +82,72 @@ ${marketingContent}`;
             controller.enqueue(encoder.encode(`data: ${sessionData}\n\n`));
           }
 
-          for await (const event of stream) {
-            if (
-              event.type === "content_block_delta" &&
-              event.delta.type === "text_delta"
-            ) {
-              fullResponse += event.delta.text;
-              const data = JSON.stringify({ content: event.delta.text });
-              controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+          let fullResponse = "";
+          let currentMessages = [...claudeMessages];
+          let continueLoop = true;
+
+          // Tool use loop - keep going until we get a final text response
+          while (continueLoop) {
+            const response = await anthropic.messages.create({
+              model: CLAUDE_MODEL,
+              max_tokens: 4096,
+              system: SALES_SYSTEM_PROMPT,
+              tools,
+              messages: currentMessages,
+            });
+
+            // Process the response content
+            for (const block of response.content) {
+              if (block.type === "text") {
+                // Stream text content
+                fullResponse += block.text;
+                const data = JSON.stringify({ content: block.text });
+                controller.enqueue(encoder.encode(`data: ${data}\n\n`));
+              } else if (block.type === "tool_use") {
+                // Send tool use indicator to client
+                const toolStatus = JSON.stringify({
+                  tool_use: {
+                    name: block.name,
+                    searching: true,
+                  },
+                });
+                controller.enqueue(encoder.encode(`data: ${toolStatus}\n\n`));
+
+                // Execute the tool
+                const toolResult = executeTool(
+                  block.name,
+                  block.input as Record<string, unknown>
+                );
+
+                // Add assistant message with tool use and tool result to continue conversation
+                currentMessages = [
+                  ...currentMessages,
+                  {
+                    role: "assistant" as const,
+                    content: response.content,
+                  },
+                  {
+                    role: "user" as const,
+                    content: [
+                      {
+                        type: "tool_result" as const,
+                        tool_use_id: block.id,
+                        content: toolResult,
+                      },
+                    ],
+                  },
+                ];
+              }
+            }
+
+            // Check if we should continue the loop
+            if (response.stop_reason === "end_turn") {
+              continueLoop = false;
+            } else if (response.stop_reason === "tool_use") {
+              // Continue to process tool results
+              continueLoop = true;
+            } else {
+              continueLoop = false;
             }
           }
 
@@ -119,7 +160,11 @@ ${marketingContent}`;
           controller.close();
         } catch (error) {
           console.error("Stream error:", error);
-          controller.error(error);
+          const errorData = JSON.stringify({
+            error: "An error occurred while processing your request.",
+          });
+          controller.enqueue(encoder.encode(`data: ${errorData}\n\n`));
+          controller.close();
         }
       },
     });
@@ -135,12 +180,9 @@ ${marketingContent}`;
     });
   } catch (error) {
     console.error("Chat API error:", error);
-    return new Response(
-      JSON.stringify({ error: "Internal server error" }),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    });
   }
 }
