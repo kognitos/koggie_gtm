@@ -1,5 +1,8 @@
+"use client";
+
 import { ChatContainer } from "@/components/chat/ChatContainer";
 import { Logo } from "@/components/ui/Logo";
+import { CTAButtons } from "@/components/ui/CTAButtons";
 
 export default function Home() {
   return (
@@ -18,14 +21,7 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <a
-            href="https://www.kognitos.com/demo"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-4 py-2 text-sm font-medium bg-[var(--kognitos-yellow)] text-[var(--kognitos-black)] rounded-lg hover:bg-[var(--kognitos-yellow-dim)] transition-colors"
-          >
-            Book a Demo
-          </a>
+          <CTAButtons />
         </div>
       </header>
 

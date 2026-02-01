@@ -61,6 +61,26 @@ CREATE POLICY "Allow anonymous access for chat messages" ON chat_messages
   FOR ALL USING (true) WITH CHECK (true);
 
 -- ============================================
+-- Leads Table
+-- ============================================
+CREATE TABLE IF NOT EXISTS leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  email TEXT NOT NULL,
+  session_id UUID REFERENCES chat_sessions(id),
+  source TEXT DEFAULT 'report_request',
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  metadata JSONB DEFAULT '{}'::jsonb
+);
+
+CREATE INDEX IF NOT EXISTS idx_leads_email ON leads(email);
+CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at DESC);
+
+ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow anonymous access for leads" ON leads
+  FOR ALL USING (true) WITH CHECK (true);
+
+-- ============================================
 -- Cleanup Functions (optional - run via cron)
 -- ============================================
 
