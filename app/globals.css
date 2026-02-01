@@ -1,26 +1,144 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Kognitos Brand Colors */
+  --kognitos-black: #1c1c1b;
+  --kognitos-yellow: #f2fb90;
+  --kognitos-yellow-dim: #d4dc7a;
+  --kognitos-gray-900: #2a2a29;
+  --kognitos-gray-800: #3a3a39;
+  --kognitos-gray-700: #4a4a49;
+  --kognitos-gray-600: #6a6a69;
+  --kognitos-gray-400: #9a9a99;
+  --kognitos-gray-200: #cacac9;
+  --kognitos-white: #fafafa;
+  
+  /* Semantic Colors */
+  --background: var(--kognitos-black);
+  --foreground: var(--kognitos-white);
+  --accent: var(--kognitos-yellow);
+  --accent-dim: var(--kognitos-yellow-dim);
+  --muted: var(--kognitos-gray-600);
+  --muted-foreground: var(--kognitos-gray-400);
+  --card: var(--kognitos-gray-900);
+  --card-hover: var(--kognitos-gray-800);
+  --border: var(--kognitos-gray-700);
+  --input: var(--kognitos-gray-800);
+  
+  /* User message bubble */
+  --user-bubble: var(--kognitos-gray-800);
+  --user-bubble-text: var(--kognitos-white);
+  
+  /* Assistant message bubble */
+  --assistant-bubble: transparent;
+  --assistant-bubble-text: var(--kognitos-gray-200);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-accent: var(--accent);
+  --color-accent-dim: var(--accent-dim);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-card: var(--card);
+  --color-card-hover: var(--card-hover);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-user-bubble: var(--user-bubble);
+  --color-user-bubble-text: var(--user-bubble-text);
+  --color-assistant-bubble: var(--assistant-bubble);
+  --color-assistant-bubble-text: var(--assistant-bubble-text);
+  --color-kognitos-yellow: var(--kognitos-yellow);
+  --color-kognitos-black: var(--kognitos-black);
+  --font-mono: 'IBM Plex Mono', monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--kognitos-gray-600) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--kognitos-gray-600);
+  border-radius: 3px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--kognitos-gray-400);
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'IBM Plex Mono', monospace;
+  min-height: 100vh;
+}
+
+/* Smooth selection with brand colors */
+::selection {
+  background: var(--kognitos-yellow);
+  color: var(--kognitos-black);
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(242, 251, 144, 0);
+  }
+  50% {
+    box-shadow: 0 0 20px 4px rgba(242, 251, 144, 0.3);
+  }
+}
+
+@keyframes typing-dot {
+  0%, 60%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+.typing-dot {
+  animation: typing-dot 1.4s ease-in-out infinite;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.4s;
 }
