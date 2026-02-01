@@ -100,10 +100,10 @@ function WelcomeMessage() {
         for your automation needs. What brings you here today?
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
-        <SuggestionButton text="What makes Kognitos different from RPA?" />
-        <SuggestionButton text="How does the Resolution Agent work?" />
-        <SuggestionButton text="Tell me about pricing" />
-        <SuggestionButton text="What's neurosymbolic AI?" />
+        <SuggestionButton text="How can I trust AI to not make mistakes?" />
+        <SuggestionButton text="How can AI help reduce costs?" />
+        <SuggestionButton text="What finance processes can you automate?" />
+        <SuggestionButton text="How is this different from RPA?" />
       </div>
     </div>
   );
