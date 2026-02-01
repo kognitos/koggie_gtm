@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Kognitos AI Sales Assistant",
-  description: "Discover how Kognitos delivers hallucination-free AI automation with living documentation and institutional memory.",
+  title: "Knox | Kognitos Sales Assistant",
+  description: "Chat with Knox to learn how Kognitos delivers hallucination-free AI automation with living documentation and institutional memory.",
   icons: {
     icon: "/favicon.svg",
   },

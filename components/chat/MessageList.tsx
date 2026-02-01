@@ -93,12 +93,11 @@ function WelcomeMessage() {
         </svg>
       </div>
       <h2 className="text-xl font-semibold text-[var(--kognitos-white)] mb-2">
-        Hi, I&apos;m Koggie!
+        Hi, I&apos;m Knox
       </h2>
       <p className="text-[var(--kognitos-gray-400)] max-w-md mb-8">
-        I&apos;m here to help you learn about Kognitos—the only AI automation
-        platform that captures your institutional knowledge and never
-        hallucinates.
+        I&apos;m here to help you learn about Kognitos and see if it&apos;s a fit
+        for your automation needs. What brings you here today?
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
         <SuggestionButton text="What makes Kognitos different from RPA?" />
