@@ -1,5 +1,6 @@
 -- Koggie GTM Database Schema
 -- Run this in your Supabase SQL Editor
+-- Safe to run multiple times (idempotent)
 
 -- ============================================
 -- Rate Limiting Table
@@ -15,6 +16,7 @@ CREATE INDEX IF NOT EXISTS idx_rate_limits_reset_at ON rate_limits(reset_at);
 
 ALTER TABLE rate_limits ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow anonymous access for rate limiting" ON rate_limits;
 CREATE POLICY "Allow anonymous access for rate limiting" ON rate_limits
   FOR ALL USING (true) WITH CHECK (true);
 
@@ -36,6 +38,7 @@ CREATE INDEX IF NOT EXISTS idx_chat_sessions_ip ON chat_sessions(ip_address);
 
 ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow anonymous access for chat sessions" ON chat_sessions;
 CREATE POLICY "Allow anonymous access for chat sessions" ON chat_sessions
   FOR ALL USING (true) WITH CHECK (true);
 
@@ -55,8 +58,9 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 CREATE INDEX IF NOT EXISTS idx_chat_messages_session ON chat_messages(session_id);
 CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at DESC);
 
-ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow anonymous access for chat messages" ON chat_messages;
 CREATE POLICY "Allow anonymous access for chat messages" ON chat_messages
   FOR ALL USING (true) WITH CHECK (true);
 
@@ -77,6 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at DESC);
 
 ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow anonymous access for leads" ON leads;
 CREATE POLICY "Allow anonymous access for leads" ON leads
   FOR ALL USING (true) WITH CHECK (true);
 
