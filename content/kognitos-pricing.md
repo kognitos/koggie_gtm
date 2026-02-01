@@ -41,7 +41,7 @@ Unused credits roll over when you renew at the same tier or higher.
 **Builder Agent** — Create automations through conversation
 - Describe your process in plain English → get a working automation
 - Build through dialogue, not drag-and-drop
-- Make changes instantly: *"Change the approval threshold to $5,000"*
+- Make changes instantly: *"Change the approval threshold to 5,000"*
 - Every automation is also living documentation that never goes stale
 
 **Resolution Agent** — Handle exceptions intelligently
@@ -74,9 +74,7 @@ Export your automations, runbooks, and institutional knowledge anytime, at no co
 
 ## Getting Started
 
-**Minimum commitment:** $125,000 annually
-
-**Evaluation option:** 3-month initial term available for $45,000
+Pricing is customized based on your automation needs and scale. We offer flexible options including evaluation terms for teams who want to start with a focused pilot.
 
 [Contact Sales to discuss your needs →]
 
