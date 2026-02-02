@@ -14,8 +14,41 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
 }
 
+// Parse quick reply options from message content
+// Format: [[Option 1|Option 2|Option 3]]
+function parseQuickReplies(content: string): { text: string; options: string[] } {
+  const match = content.match(/\[\[([^\]]+)\]\]\s*$/);
+  if (!match) {
+    return { text: content, options: [] };
+  }
+  const options = match[1].split("|").map((opt) => opt.trim());
+  const text = content.replace(/\[\[([^\]]+)\]\]\s*$/, "").trim();
+  return { text, options };
+}
+
+function QuickReplyButton({ text }: { text: string }) {
+  const handleClick = () => {
+    window.dispatchEvent(
+      new CustomEvent("koggie-suggestion", { detail: text })
+    );
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      className="px-3 py-1.5 text-sm text-[var(--kognitos-yellow)] bg-transparent border border-[var(--kognitos-yellow)] rounded-full hover:bg-[var(--kognitos-yellow)] hover:text-[var(--kognitos-black)] transition-colors"
+    >
+      {text}
+    </button>
+  );
+}
+
 export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
   const isUser = message.role === "user";
+  const { text, options } = isUser
+    ? { text: message.content, options: [] }
+    : parseQuickReplies(message.content);
 
   return (
     <div
@@ -123,10 +156,18 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
                 ),
               }}
             >
-              {message.content}
+              {text}
             </ReactMarkdown>
             {isStreaming && (
               <span className="inline-block w-2 h-4 ml-1 bg-[var(--kognitos-yellow)] animate-pulse" />
+            )}
+            {/* Quick Reply Buttons */}
+            {options.length > 0 && !isStreaming && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {options.map((option, index) => (
+                  <QuickReplyButton key={index} text={option} />
+                ))}
+              </div>
             )}
           </div>
         )}
