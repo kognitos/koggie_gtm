@@ -50,7 +50,7 @@ function WelcomeMessage() {
         <svg
           fill="none"
           height="32"
-          viewBox="-60 0 512 320"
+          viewBox="-30 0 512 320"
           width="52"
           xmlns="http://www.w3.org/2000/svg"
         >
