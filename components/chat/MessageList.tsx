@@ -47,8 +47,8 @@ export function MessageList({
 function WelcomeMessage() {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-4">
-      <div className="w-16 h-16 rounded-2xl bg-[var(--kognitos-gray-800)] flex items-center justify-center mb-6 animate-pulse-glow">
-        <LogoMark size={20} />
+      <div className="w-16 h-16 rounded-2xl bg-[var(--kognitos-gray-800)] flex items-center justify-center mb-6 animate-pulse-glow overflow-hidden">
+        <LogoMark size={14} />
       </div>
       <h2 className="text-xl font-semibold text-[var(--kognitos-white)] mb-2">
         Hi, I&apos;m Knox
