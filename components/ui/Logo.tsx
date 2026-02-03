@@ -29,7 +29,7 @@ export function LogoMark({ size = 24, className = "" }: LogoProps) {
     <svg
       fill="none"
       height={size}
-      viewBox="0 0 512 320"
+      viewBox="-30 0 512 320"
       width={size * 1.6}
       xmlns="http://www.w3.org/2000/svg"
       className={className}
