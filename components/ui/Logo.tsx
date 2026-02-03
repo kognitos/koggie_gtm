@@ -25,12 +25,13 @@ export function Logo({ size = 40, className = "" }: LogoProps) {
 }
 
 export function LogoMark({ size = 24, className = "" }: LogoProps) {
+  // viewBox cropped to actual path bounds: x=0-397, y=86-234
   return (
     <svg
       fill="none"
       height={size}
-      viewBox="0 0 512 320"
-      width={size * 1.6}
+      viewBox="0 86 397 148"
+      width={size * 2.68}
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >

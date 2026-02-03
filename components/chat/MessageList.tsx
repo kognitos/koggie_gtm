@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { Message, MessageBubble, TypingIndicator } from "./MessageBubble";
+import { LogoMark } from "@/components/ui/Logo";
 
 interface MessageListProps {
   messages: Message[];
@@ -47,18 +48,7 @@ function WelcomeMessage() {
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-4">
       <div className="w-16 h-16 rounded-2xl bg-[var(--kognitos-gray-800)] flex items-center justify-center mb-6 animate-pulse-glow">
-        <svg
-          fill="none"
-          height="32"
-          viewBox="0 0 512 320"
-          width="52"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <path
-            d="m391.986 130.171v-38.341c0-2.946-2.385-5.331-5.331-5.331h-171.336c-2.946 0-5.331 2.385-5.331 5.331v38.341c0 2.945-2.385 5.331-5.33 5.331h-24.341c-2.945 0-5.331-2.386-5.331-5.331v-38.341c0-2.946-2.385-5.331-5.33-5.331h-164.3253c-2.9455 0-5.3307 2.385-5.3307 5.331v87.338c0 2.945 2.3852 5.33 5.3307 5.33h45.3414c2.9455 0 5.3307 2.386 5.3307 5.331v38.341c0 2.946 2.3852 5.331 5.3307 5.331h171.3365c2.945 0 5.331-2.385 5.331-5.331v-38.341c0-2.945 2.385-5.331 5.33-5.331h24.341c2.945 0 5.33 2.386 5.33 5.331v38.341c0 2.946 2.386 5.331 5.331 5.331h164.336c2.946 0 5.331-2.385 5.331-5.331v-87.343c0-2.946-2.385-5.331-5.331-5.331h-45.341c-2.946 0-5.331-2.385-5.331-5.331z"
-            fill="#f2fb90"
-          />
-        </svg>
+        <LogoMark size={20} />
       </div>
       <h2 className="text-xl font-semibold text-[var(--kognitos-white)] mb-2">
         Hi, I&apos;m Knox
