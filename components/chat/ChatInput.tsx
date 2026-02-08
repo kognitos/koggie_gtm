@@ -61,16 +61,16 @@ export function ChatInput({ onSend, disabled, remaining }: ChatInputProps) {
   return (
     <div className="w-full border-t border-[var(--kognitos-gray-800)] bg-[var(--kognitos-black)] px-4 py-4">
       <div className="max-w-3xl mx-auto">
-        <div className="relative flex items-end gap-2 bg-[var(--kognitos-gray-900)] rounded-2xl border border-[var(--kognitos-gray-700)] focus-within:border-[var(--kognitos-yellow)] transition-colors">
+        <div className="relative flex items-center gap-2 bg-[var(--kognitos-gray-900)] rounded-2xl border border-[var(--kognitos-gray-700)] focus-within:border-[var(--kognitos-yellow)] transition-colors">
           <textarea
             ref={textareaRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            placeholder="Ask me anything about Kognitos..."
+            placeholder="What's on your mind?.."
             disabled={disabled}
             rows={1}
-            className="flex-1 bg-transparent text-[var(--kognitos-white)] placeholder-[var(--kognitos-gray-600)] text-sm px-4 py-3 resize-none focus:outline-none disabled:opacity-50"
+            className="flex-1 bg-transparent text-[var(--kognitos-white)] placeholder-[var(--kognitos-gray-600)] text-sm px-4 py-3.5 resize-none focus:outline-none disabled:opacity-50 leading-5"
           />
           <button
             type="button"
