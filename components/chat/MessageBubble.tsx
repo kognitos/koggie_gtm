@@ -83,83 +83,95 @@ export function MessageBubble({ message, isStreaming }: MessageBubbleProps) {
           <div className="text-sm leading-relaxed">{message.content}</div>
         ) : (
           <div className="prose-kognitos text-sm leading-relaxed">
-            <ReactMarkdown
-              components={{
-                h1: ({ children }) => (
-                  <h1 className="text-lg font-bold text-[var(--kognitos-white)] mt-4 mb-2 first:mt-0">
-                    {children}
-                  </h1>
-                ),
-                h2: ({ children }) => (
-                  <h2 className="text-base font-semibold text-[var(--kognitos-white)] mt-4 mb-2 first:mt-0">
-                    {children}
-                  </h2>
-                ),
-                h3: ({ children }) => (
-                  <h3 className="text-sm font-semibold text-[var(--kognitos-white)] mt-3 mb-1 first:mt-0">
-                    {children}
-                  </h3>
-                ),
-                p: ({ children }) => (
-                  <p className="mb-3 last:mb-0">{children}</p>
-                ),
-                ul: ({ children }) => (
-                  <ul className="list-disc list-outside ml-4 mb-3 space-y-1 last:mb-0">
-                    {children}
-                  </ul>
-                ),
-                ol: ({ children }) => (
-                  <ol className="list-decimal list-outside ml-4 mb-3 space-y-1 last:mb-0">
-                    {children}
-                  </ol>
-                ),
-                li: ({ children }) => (
-                  <li className="pl-1">{children}</li>
-                ),
-                strong: ({ children }) => (
-                  <strong className="font-semibold text-[var(--kognitos-white)]">
-                    {children}
-                  </strong>
-                ),
-                em: ({ children }) => (
-                  <em className="italic text-[var(--kognitos-gray-300)]">
-                    {children}
-                  </em>
-                ),
-                code: ({ children }) => (
-                  <code className="px-1.5 py-0.5 bg-[var(--kognitos-gray-800)] text-[var(--kognitos-yellow)] rounded text-xs" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                    {children}
-                  </code>
-                ),
-                pre: ({ children }) => (
-                  <pre className="bg-[var(--kognitos-gray-800)] rounded-lg p-3 overflow-x-auto mb-3 last:mb-0 text-sm" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-                    {children}
-                  </pre>
-                ),
-                a: ({ href, children }) => (
-                  <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[var(--kognitos-yellow)] hover:underline"
-                  >
-                    {children}
-                  </a>
-                ),
-                blockquote: ({ children }) => (
-                  <blockquote className="border-l-2 border-[var(--kognitos-yellow)] pl-3 italic text-[var(--kognitos-gray-400)] mb-3 last:mb-0">
-                    {children}
-                  </blockquote>
-                ),
-                hr: () => (
-                  <hr className="border-[var(--kognitos-gray-700)] my-4" />
-                ),
-              }}
-            >
-              {text}
-            </ReactMarkdown>
-            {isStreaming && (
-              <span className="inline-block w-2 h-4 ml-1 bg-[var(--kognitos-yellow)] animate-pulse" />
+{/* Show typing dots if streaming but no content yet */}
+            {isStreaming && !text && (
+              <div className="flex items-center gap-2 py-1">
+                <span className="w-2 h-2 rounded-full bg-[var(--kognitos-gray-400)] typing-dot" />
+                <span className="w-2 h-2 rounded-full bg-[var(--kognitos-gray-400)] typing-dot" />
+                <span className="w-2 h-2 rounded-full bg-[var(--kognitos-gray-400)] typing-dot" />
+              </div>
+            )}
+            {text && (
+              <>
+                <ReactMarkdown
+                  components={{
+                    h1: ({ children }) => (
+                      <h1 className="text-lg font-bold text-[var(--kognitos-white)] mt-4 mb-2 first:mt-0">
+                        {children}
+                      </h1>
+                    ),
+                    h2: ({ children }) => (
+                      <h2 className="text-base font-semibold text-[var(--kognitos-white)] mt-4 mb-2 first:mt-0">
+                        {children}
+                      </h2>
+                    ),
+                    h3: ({ children }) => (
+                      <h3 className="text-sm font-semibold text-[var(--kognitos-white)] mt-3 mb-1 first:mt-0">
+                        {children}
+                      </h3>
+                    ),
+                    p: ({ children }) => (
+                      <p className="mb-3 last:mb-0">{children}</p>
+                    ),
+                    ul: ({ children }) => (
+                      <ul className="list-disc list-outside ml-4 mb-3 space-y-1 last:mb-0">
+                        {children}
+                      </ul>
+                    ),
+                    ol: ({ children }) => (
+                      <ol className="list-decimal list-outside ml-4 mb-3 space-y-1 last:mb-0">
+                        {children}
+                      </ol>
+                    ),
+                    li: ({ children }) => (
+                      <li className="pl-1">{children}</li>
+                    ),
+                    strong: ({ children }) => (
+                      <strong className="font-semibold text-[var(--kognitos-white)]">
+                        {children}
+                      </strong>
+                    ),
+                    em: ({ children }) => (
+                      <em className="italic text-[var(--kognitos-gray-300)]">
+                        {children}
+                      </em>
+                    ),
+                    code: ({ children }) => (
+                      <code className="px-1.5 py-0.5 bg-[var(--kognitos-gray-800)] text-[var(--kognitos-yellow)] rounded text-xs" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                        {children}
+                      </code>
+                    ),
+                    pre: ({ children }) => (
+                      <pre className="bg-[var(--kognitos-gray-800)] rounded-lg p-3 overflow-x-auto mb-3 last:mb-0 text-sm" style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+                        {children}
+                      </pre>
+                    ),
+                    a: ({ href, children }) => (
+                      <a
+                        href={href}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[var(--kognitos-yellow)] hover:underline"
+                      >
+                        {children}
+                      </a>
+                    ),
+                    blockquote: ({ children }) => (
+                      <blockquote className="border-l-2 border-[var(--kognitos-yellow)] pl-3 italic text-[var(--kognitos-gray-400)] mb-3 last:mb-0">
+                        {children}
+                      </blockquote>
+                    ),
+                    hr: () => (
+                      <hr className="border-[var(--kognitos-gray-700)] my-4" />
+                    ),
+                  }}
+                >
+                  {text}
+                </ReactMarkdown>
+                {isStreaming && (
+                  <span className="inline-block w-2 h-4 ml-1 bg-[var(--kognitos-yellow)] animate-pulse" />
+                )}
+              </>
             )}
             {/* Quick Reply Buttons */}
             {options.length > 0 && !isStreaming && (
