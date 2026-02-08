@@ -19,7 +19,11 @@ export function MessageList({
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Only scroll when there are messages - prevents auto-scroll on initial load
+    // which can cause the parent page to scroll when embedded in an iframe
+    if (messages.length > 0) {
+      bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
   }, [messages, isLoading, toolStatus]);
 
   return (
