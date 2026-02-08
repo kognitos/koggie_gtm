@@ -59,7 +59,7 @@ export function ChatInput({ onSend, disabled, remaining }: ChatInputProps) {
   }, [onSend]);
 
   return (
-    <div className="border-t border-[var(--kognitos-gray-800)] bg-[var(--kognitos-black)] px-4 py-4">
+    <div className="w-full border-t border-[var(--kognitos-gray-800)] bg-[var(--kognitos-black)] px-4 py-4">
       <div className="max-w-3xl mx-auto">
         <div className="relative flex items-end gap-2 bg-[var(--kognitos-gray-900)] rounded-2xl border border-[var(--kognitos-gray-700)] focus-within:border-[var(--kognitos-yellow)] transition-colors">
           <textarea

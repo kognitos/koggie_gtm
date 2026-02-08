@@ -177,7 +177,7 @@ export function ChatContainer() {
   );
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full w-full">
       <MessageList
         messages={messages}
         isLoading={isLoading}
