@@ -194,11 +194,11 @@ interface TypingIndicatorProps {
 
 export function TypingIndicator({ toolStatus }: TypingIndicatorProps) {
   return (
-    <div className="flex gap-3 animate-fade-in">
+    <div className="flex gap-3 items-center animate-fade-in">
       <div className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-[var(--kognitos-gray-800)]">
         <LogoMark size={16} />
       </div>
-      <div className="flex items-center gap-2 py-3">
+      <div className="flex items-center gap-2">
         {toolStatus ? (
           <>
             <span className="w-2 h-2 rounded-full bg-[var(--kognitos-yellow)] animate-pulse" />
