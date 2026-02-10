@@ -12,6 +12,8 @@ interface SessionSummary {
   last_message_at: string;
   message_count: number;
   preview: string | null;
+  lead_email: string | null;
+  lead_source: string | null;
 }
 
 interface SessionMessage {
@@ -218,44 +220,57 @@ export default function AdminPage() {
             ) : (
               <>
                 <div className="space-y-2">
-                  {sessions.map((s) => (
-                    <button
-                      key={s.id}
-                      onClick={() => fetchSessionDetail(s.id)}
-                      className={`w-full text-left p-4 rounded-xl border transition-colors ${
-                        selectedSession?.session.id === s.id
-                          ? "bg-[var(--kognitos-gray-800)] border-[var(--kognitos-yellow)]"
-                          : "bg-[var(--kognitos-gray-900)] border-[var(--kognitos-gray-700)] hover:border-[var(--kognitos-gray-600)]"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-1">
-                            {s.email ? (
-                              <span className="text-sm font-medium text-[var(--kognitos-yellow)] truncate">
-                                {s.email}
+                  {sessions.map((s) => {
+                    const displayName = s.lead_email || s.email;
+                    const hasLead = !!s.lead_email;
+                    const isSelected = selectedSession?.session.id === s.id;
+
+                    return (
+                      <button
+                        key={s.id}
+                        onClick={() => fetchSessionDetail(s.id)}
+                        className={`w-full text-left p-4 rounded-xl border transition-colors ${
+                          isSelected
+                            ? "bg-[var(--kognitos-gray-800)] border-[var(--kognitos-yellow)]"
+                            : hasLead
+                              ? "bg-[var(--kognitos-gray-900)] border-[var(--kognitos-yellow)]/40 hover:border-[var(--kognitos-yellow)]"
+                              : "bg-[var(--kognitos-gray-900)] border-[var(--kognitos-gray-700)] hover:border-[var(--kognitos-gray-600)]"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              {displayName ? (
+                                <span className={`text-sm font-medium truncate ${hasLead ? "text-[var(--kognitos-yellow)]" : "text-[var(--kognitos-white)]"}`}>
+                                  {displayName}
+                                </span>
+                              ) : (
+                                <span className="text-sm text-[var(--kognitos-gray-600)] italic">
+                                  Anonymous
+                                </span>
+                              )}
+                              {hasLead && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--kognitos-yellow)]/15 text-[var(--kognitos-yellow)] flex-shrink-0 font-medium">
+                                  Lead
+                                </span>
+                              )}
+                              <span className="text-xs text-[var(--kognitos-gray-600)] flex-shrink-0">
+                                {s.message_count} msg{s.message_count !== 1 ? "s" : ""}
                               </span>
-                            ) : (
-                              <span className="text-sm text-[var(--kognitos-gray-600)] italic">
-                                Anonymous
-                              </span>
+                            </div>
+                            {s.preview && (
+                              <p className="text-sm text-[var(--kognitos-gray-400)] truncate">
+                                {s.preview}
+                              </p>
                             )}
-                            <span className="text-xs text-[var(--kognitos-gray-600)] flex-shrink-0">
-                              {s.message_count} msg{s.message_count !== 1 ? "s" : ""}
-                            </span>
                           </div>
-                          {s.preview && (
-                            <p className="text-sm text-[var(--kognitos-gray-400)] truncate">
-                              {s.preview}
-                            </p>
-                          )}
+                          <span className="text-xs text-[var(--kognitos-gray-600)] flex-shrink-0 whitespace-nowrap">
+                            {formatDate(s.started_at)}
+                          </span>
                         </div>
-                        <span className="text-xs text-[var(--kognitos-gray-600)] flex-shrink-0 whitespace-nowrap">
-                          {formatDate(s.started_at)}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Pagination */}
@@ -290,19 +305,21 @@ export default function AdminPage() {
               {/* Panel header */}
               <div className="flex items-center justify-between p-4 border-b border-[var(--kognitos-gray-700)]">
                 <div>
-                  <h3 className="font-medium text-[var(--kognitos-white)]">
-                    {selectedSession.session.email || "Anonymous"}
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className={`font-medium ${selectedSession.lead ? "text-[var(--kognitos-yellow)]" : "text-[var(--kognitos-white)]"}`}>
+                      {selectedSession.lead?.email || selectedSession.session.email || "Anonymous"}
+                    </h3>
+                    {selectedSession.lead && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--kognitos-yellow)]/15 text-[var(--kognitos-yellow)] font-medium">
+                        {selectedSession.lead.source.replace("_", " ")}
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-[var(--kognitos-gray-400)] mt-0.5">
                     {formatDate(selectedSession.session.started_at)}
                     {selectedSession.session.ip_address &&
                       ` -- ${selectedSession.session.ip_address}`}
                   </p>
-                  {selectedSession.lead && (
-                    <p className="text-xs text-[var(--kognitos-yellow)] mt-1">
-                      Lead: {selectedSession.lead.email} ({selectedSession.lead.source})
-                    </p>
-                  )}
                 </div>
                 <button
                   onClick={() => setSelectedSession(null)}

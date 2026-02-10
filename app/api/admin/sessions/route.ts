@@ -37,9 +37,25 @@ export async function GET(request: NextRequest) {
       .order("started_at", { ascending: false })
       .range(offset, offset + limit - 1);
 
-    // Filter by email if search is provided
+    // Filter by session email if search is provided
+    // Also find sessions with matching lead emails
+    let leadSessionIds: string[] = [];
     if (search) {
-      query = query.ilike("email", `%${search}%`);
+      const { data: matchingLeads } = await supabase
+        .from("leads")
+        .select("session_id")
+        .ilike("email", `%${search}%`);
+      leadSessionIds = (matchingLeads || [])
+        .map((l) => l.session_id)
+        .filter(Boolean) as string[];
+    }
+
+    if (search) {
+      if (leadSessionIds.length > 0) {
+        query = query.or(`email.ilike.%${search}%,id.in.(${leadSessionIds.join(",")})`);
+      } else {
+        query = query.ilike("email", `%${search}%`);
+      }
     }
 
     const { data: sessions, error, count } = await query;
@@ -64,9 +80,19 @@ export async function GET(request: NextRequest) {
           .select("id", { count: "exact", head: true })
           .eq("session_id", s.id);
 
+        // Check for lead
+        const { data: lead } = await supabase
+          .from("leads")
+          .select("email, source")
+          .eq("session_id", s.id)
+          .limit(1)
+          .single();
+
         return {
           ...s,
           message_count: msgCount || 0,
+          lead_email: lead?.email || null,
+          lead_source: lead?.source || null,
           preview: firstMsg?.content
             ? firstMsg.content.slice(0, 120) + (firstMsg.content.length > 120 ? "..." : "")
             : null,
