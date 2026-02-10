@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { Message, MessageBubble, TypingIndicator } from "./MessageBubble";
+import { SUGGESTION_TEXTS } from "@/lib/constants";
 
 interface MessageListProps {
   messages: Message[];
@@ -72,10 +73,9 @@ function WelcomeMessage() {
         for your automation needs. What brings you here today?
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-lg">
-        <SuggestionButton text="How can I trust AI to not make mistakes?" />
-        <SuggestionButton text="How can AI help reduce costs?" />
-        <SuggestionButton text="What finance processes can you automate?" />
-        <SuggestionButton text="How is this different from RPA?" />
+        {SUGGESTION_TEXTS.map((text) => (
+          <SuggestionButton key={text} text={text} />
+        ))}
       </div>
       <ConsentNotice />
     </div>

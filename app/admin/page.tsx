@@ -37,6 +37,22 @@ interface SessionDetail {
   lead: { email: string; source: string; created_at: string } | null;
 }
 
+interface Stats {
+  totalSessions: number;
+  totalLeads: number;
+  engagedSessions: number;
+  customStarts: number;
+}
+
+type FilterTab = "all" | "leads" | "engaged" | "custom";
+
+const FILTER_TABS: { key: FilterTab; label: string; statKey: keyof Stats }[] = [
+  { key: "all", label: "All", statKey: "totalSessions" },
+  { key: "leads", label: "Leads", statKey: "totalLeads" },
+  { key: "engaged", label: "Engaged", statKey: "engagedSessions" },
+  { key: "custom", label: "Custom Starts", statKey: "customStarts" },
+];
+
 export default function AdminPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
@@ -47,9 +63,13 @@ export default function AdminPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [search, setSearch] = useState("");
   const [searchInput, setSearchInput] = useState("");
+  const [filter, setFilter] = useState<FilterTab>("all");
   const [loading, setLoading] = useState(true);
-  const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(null);
+  const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(
+    null
+  );
   const [loadingDetail, setLoadingDetail] = useState(false);
+  const [stats, setStats] = useState<Stats | null>(null);
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -58,11 +78,23 @@ export default function AdminPage() {
     }
   }, [status, router]);
 
+  // Fetch stats
+  useEffect(() => {
+    if (status !== "authenticated") return;
+    fetch("/api/admin/stats")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data) setStats(data);
+      })
+      .catch(() => {});
+  }, [status]);
+
   const fetchSessions = useCallback(async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (search) params.set("search", search);
+      if (filter !== "all") params.set("filter", filter);
       params.set("page", page.toString());
 
       const res = await fetch(`/api/admin/sessions?${params}`);
@@ -79,7 +111,7 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, page, router]);
+  }, [search, filter, page, router]);
 
   useEffect(() => {
     if (status === "authenticated") {
@@ -104,6 +136,12 @@ export default function AdminPage() {
     e.preventDefault();
     setPage(1);
     setSearch(searchInput);
+  };
+
+  const handleFilterChange = (tab: FilterTab) => {
+    setFilter(tab);
+    setPage(1);
+    setSelectedSession(null);
   };
 
   const formatDate = (dateStr: string) => {
@@ -164,13 +202,47 @@ export default function AdminPage() {
       </header>
 
       <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Search and stats */}
+        {/* Stats bar */}
+        {stats && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+            <StatCard label="Total Sessions" value={stats.totalSessions} />
+            <StatCard
+              label="Leads Captured"
+              value={stats.totalLeads}
+              highlight
+            />
+            <StatCard label="Engaged Chats" value={stats.engagedSessions} />
+            <StatCard label="Custom Starts" value={stats.customStarts} />
+          </div>
+        )}
+
+        {/* Filter tabs + search */}
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h2 className="text-xl font-semibold">Chat Sessions</h2>
-            <p className="text-sm text-[var(--kognitos-gray-400)] mt-1">
-              {total} total session{total !== 1 ? "s" : ""}
-            </p>
+          <div className="flex items-center gap-1 bg-[var(--kognitos-gray-900)] rounded-lg p-1">
+            {FILTER_TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => handleFilterChange(tab.key)}
+                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                  filter === tab.key
+                    ? "bg-[var(--kognitos-gray-700)] text-[var(--kognitos-white)] font-medium"
+                    : "text-[var(--kognitos-gray-400)] hover:text-[var(--kognitos-white)]"
+                }`}
+              >
+                {tab.label}
+                {stats && (
+                  <span
+                    className={`ml-1.5 text-xs ${
+                      filter === tab.key
+                        ? "text-[var(--kognitos-gray-300)]"
+                        : "text-[var(--kognitos-gray-600)]"
+                    }`}
+                  >
+                    {stats[tab.statKey]}
+                  </span>
+                )}
+              </button>
+            ))}
           </div>
           <form onSubmit={handleSearch} className="flex gap-2">
             <input
@@ -202,18 +274,33 @@ export default function AdminPage() {
           </form>
         </div>
 
+        {/* Showing count */}
+        <p className="text-sm text-[var(--kognitos-gray-400)] mb-4">
+          {total} session{total !== 1 ? "s" : ""}
+          {filter !== "all" && ` in ${FILTER_TABS.find((t) => t.key === filter)?.label}`}
+          {search && ` matching "${search}"`}
+        </p>
+
         <div className="flex gap-6">
           {/* Session list */}
-          <div className={`${selectedSession ? "w-1/2" : "w-full"} transition-all`}>
+          <div
+            className={`${selectedSession ? "w-1/2" : "w-full"} transition-all`}
+          >
             {loading ? (
               <div className="flex items-center justify-center py-20">
-                <div className="text-[var(--kognitos-gray-400)]">Loading sessions...</div>
+                <div className="text-[var(--kognitos-gray-400)]">
+                  Loading sessions...
+                </div>
               </div>
             ) : sessions.length === 0 ? (
               <div className="flex items-center justify-center py-20">
                 <div className="text-center">
                   <p className="text-[var(--kognitos-gray-400)]">
-                    {search ? "No sessions found matching your search." : "No chat sessions yet."}
+                    {search
+                      ? "No sessions found matching your search."
+                      : filter !== "all"
+                        ? `No ${FILTER_TABS.find((t) => t.key === filter)?.label.toLowerCase()} sessions yet.`
+                        : "No chat sessions yet."}
                   </p>
                 </div>
               </div>
@@ -241,7 +328,9 @@ export default function AdminPage() {
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               {displayName ? (
-                                <span className={`text-sm font-medium truncate ${hasLead ? "text-[var(--kognitos-yellow)]" : "text-[var(--kognitos-white)]"}`}>
+                                <span
+                                  className={`text-sm font-medium truncate ${hasLead ? "text-[var(--kognitos-yellow)]" : "text-[var(--kognitos-white)]"}`}
+                                >
                                   {displayName}
                                 </span>
                               ) : (
@@ -255,7 +344,8 @@ export default function AdminPage() {
                                 </span>
                               )}
                               <span className="text-xs text-[var(--kognitos-gray-600)] flex-shrink-0">
-                                {s.message_count} msg{s.message_count !== 1 ? "s" : ""}
+                                {s.message_count} msg
+                                {s.message_count !== 1 ? "s" : ""}
                               </span>
                             </div>
                             {s.preview && (
@@ -287,7 +377,9 @@ export default function AdminPage() {
                       Page {page} of {totalPages}
                     </span>
                     <button
-                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      onClick={() =>
+                        setPage((p) => Math.min(totalPages, p + 1))
+                      }
                       disabled={page === totalPages}
                       className="px-3 py-1.5 text-sm rounded-lg border border-[var(--kognitos-gray-700)] text-[var(--kognitos-gray-400)] hover:text-[var(--kognitos-white)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     >
@@ -306,8 +398,12 @@ export default function AdminPage() {
               <div className="flex items-center justify-between p-4 border-b border-[var(--kognitos-gray-700)]">
                 <div>
                   <div className="flex items-center gap-2">
-                    <h3 className={`font-medium ${selectedSession.lead ? "text-[var(--kognitos-yellow)]" : "text-[var(--kognitos-white)]"}`}>
-                      {selectedSession.lead?.email || selectedSession.session.email || "Anonymous"}
+                    <h3
+                      className={`font-medium ${selectedSession.lead ? "text-[var(--kognitos-yellow)]" : "text-[var(--kognitos-white)]"}`}
+                    >
+                      {selectedSession.lead?.email ||
+                        selectedSession.session.email ||
+                        "Anonymous"}
                     </h3>
                     {selectedSession.lead && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--kognitos-yellow)]/15 text-[var(--kognitos-yellow)] font-medium">
@@ -325,7 +421,16 @@ export default function AdminPage() {
                   onClick={() => setSelectedSession(null)}
                   className="p-1.5 rounded-lg hover:bg-[var(--kognitos-gray-800)] text-[var(--kognitos-gray-400)] hover:text-[var(--kognitos-white)] transition-colors"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <line x1="18" y1="6" x2="6" y2="18" />
                     <line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
@@ -336,7 +441,9 @@ export default function AdminPage() {
               <div className="flex-1 overflow-y-auto p-4 space-y-4">
                 {loadingDetail ? (
                   <div className="flex items-center justify-center py-10">
-                    <div className="text-[var(--kognitos-gray-400)] text-sm">Loading messages...</div>
+                    <div className="text-[var(--kognitos-gray-400)] text-sm">
+                      Loading messages...
+                    </div>
                   </div>
                 ) : selectedSession.messages.length === 0 ? (
                   <div className="text-center py-10 text-sm text-[var(--kognitos-gray-400)]">
@@ -355,12 +462,17 @@ export default function AdminPage() {
                             : "bg-[var(--kognitos-gray-800)]/50 text-[var(--kognitos-gray-200)]"
                         }`}
                       >
-                        <p className="whitespace-pre-wrap break-words">{msg.content}</p>
+                        <p className="whitespace-pre-wrap break-words">
+                          {msg.content}
+                        </p>
                         <p className="text-[10px] text-[var(--kognitos-gray-600)] mt-1.5">
-                          {new Date(msg.created_at).toLocaleTimeString("en-US", {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
+                          {new Date(msg.created_at).toLocaleTimeString(
+                            "en-US",
+                            {
+                              hour: "numeric",
+                              minute: "2-digit",
+                            }
+                          )}
                         </p>
                       </div>
                     </div>
@@ -371,6 +483,33 @@ export default function AdminPage() {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  highlight,
+}: {
+  label: string;
+  value: number;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={`p-4 rounded-xl border ${
+        highlight
+          ? "border-[var(--kognitos-yellow)]/30 bg-[var(--kognitos-yellow)]/5"
+          : "border-[var(--kognitos-gray-700)] bg-[var(--kognitos-gray-900)]"
+      }`}
+    >
+      <p className="text-xs text-[var(--kognitos-gray-400)] mb-1">{label}</p>
+      <p
+        className={`text-2xl font-semibold ${highlight ? "text-[var(--kognitos-yellow)]" : "text-[var(--kognitos-white)]"}`}
+      >
+        {value.toLocaleString()}
+      </p>
     </div>
   );
 }
