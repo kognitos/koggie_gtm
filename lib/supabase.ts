@@ -25,6 +25,7 @@ export interface ChatSession {
   id: string;
   ip_address: string | null;
   user_agent: string | null;
+  email: string | null;
   started_at: string;
   last_message_at: string;
   message_count: number;
@@ -44,7 +45,8 @@ export interface ChatMessage {
 // Create a new chat session
 export async function createChatSession(
   ip: string | null,
-  userAgent: string | null
+  userAgent: string | null,
+  email?: string | null
 ): Promise<string | null> {
   const supabase = getSupabase();
   if (!supabase) return null;
@@ -55,6 +57,7 @@ export async function createChatSession(
       .insert({
         ip_address: ip,
         user_agent: userAgent,
+        email: email || null,
       })
       .select("id")
       .single();

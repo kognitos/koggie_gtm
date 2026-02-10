@@ -27,14 +27,22 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   ip_address TEXT,
   user_agent TEXT,
+  email TEXT,
   started_at TIMESTAMPTZ DEFAULT NOW(),
   last_message_at TIMESTAMPTZ DEFAULT NOW(),
   message_count INTEGER DEFAULT 0,
   metadata JSONB DEFAULT '{}'::jsonb
 );
 
+-- Add email column if table already exists (safe migration)
+DO $$ BEGIN
+  ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS email TEXT;
+EXCEPTION WHEN duplicate_column THEN NULL;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_started_at ON chat_sessions(started_at DESC);
 CREATE INDEX IF NOT EXISTS idx_chat_sessions_ip ON chat_sessions(ip_address);
+CREATE INDEX IF NOT EXISTS idx_chat_sessions_email ON chat_sessions(email);
 
 ALTER TABLE chat_sessions ENABLE ROW LEVEL SECURITY;
 

@@ -37,9 +37,10 @@ export async function POST(request: NextRequest) {
 
     // Parse request body
     const body = await request.json();
-    const { messages, sessionId: existingSessionId } = body as {
+    const { messages, sessionId: existingSessionId, email } = body as {
       messages: ChatMessage[];
       sessionId?: string;
+      email?: string;
     };
 
     if (!messages || !Array.isArray(messages)) {
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
     // Create or use existing session
     let sessionId = existingSessionId;
     if (!sessionId) {
-      sessionId = (await createChatSession(ip, userAgent)) || undefined;
+      sessionId = (await createChatSession(ip, userAgent, email)) || undefined;
     }
 
     // Get the latest user message to save

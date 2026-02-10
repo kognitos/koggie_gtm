@@ -15,6 +15,16 @@ export function ChatContainer() {
   const [error, setError] = useState<string | null>(null);
   const [toolStatus, setToolStatus] = useState<string | null>(null);
   const sessionIdRef = useRef<string | null>(null);
+  const emailRef = useRef<string | null>(null);
+
+  // Read email from URL query param on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const email = params.get("email");
+    if (email) {
+      emailRef.current = email;
+    }
+  }, []);
 
   // Expose session ID globally for other components (like lead capture)
   useEffect(() => {
@@ -64,6 +74,7 @@ export function ChatContainer() {
               content: m.content,
             })),
             sessionId: sessionIdRef.current,
+            email: emailRef.current,
           }),
         });
 
