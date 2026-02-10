@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getSupabase } from "@/lib/supabase";
+import { resolveIpLocation } from "@/lib/geolocation";
 
 export async function GET(
   request: NextRequest,
@@ -58,9 +59,16 @@ export async function GET(
       .limit(1)
       .single();
 
+    // Resolve IP to location (cached after first lookup)
+    const location = await resolveIpLocation(
+      chatSession.id,
+      chatSession.ip_address,
+      chatSession.metadata as Record<string, unknown> | null
+    );
+
     return new Response(
       JSON.stringify({
-        session: chatSession,
+        session: { ...chatSession, location },
         messages: messages || [],
         lead: lead || null,
       }),

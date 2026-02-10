@@ -13,6 +13,7 @@ interface EnrichedSession {
   message_count: number;
   lead_email: string | null;
   lead_source: string | null;
+  location: string | null;
   preview: string | null;
   first_message: string | null;
 }
@@ -130,6 +131,8 @@ export async function GET(request: NextRequest) {
 
         const firstContent = firstMsg?.content || null;
 
+        const metadata = s.metadata as Record<string, unknown> | null;
+
         return {
           id: s.id,
           ip_address: s.ip_address,
@@ -139,6 +142,7 @@ export async function GET(request: NextRequest) {
           message_count: msgCount || 0,
           lead_email: lead?.email || null,
           lead_source: lead?.source || null,
+          location: (metadata?.location as string) || null,
           first_message: firstContent,
           preview: firstContent
             ? firstContent.slice(0, 120) +

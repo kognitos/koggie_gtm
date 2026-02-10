@@ -1,8 +1,8 @@
 "use client";
 
 import { useSession, signOut } from "next-auth/react";
-import { useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState, useCallback, Suspense } from "react";
 
 interface SessionSummary {
   id: string;
@@ -14,6 +14,7 @@ interface SessionSummary {
   preview: string | null;
   lead_email: string | null;
   lead_source: string | null;
+  location: string | null;
 }
 
 interface SessionMessage {
@@ -31,6 +32,7 @@ interface SessionDetail {
     user_agent: string | null;
     started_at: string;
     last_message_at: string;
+    location: string | null;
     metadata: Record<string, unknown>;
   };
   messages: SessionMessage[];
@@ -53,23 +55,75 @@ const FILTER_TABS: { key: FilterTab; label: string; statKey: keyof Stats }[] = [
   { key: "custom", label: "Custom Starts", statKey: "customStarts" },
 ];
 
+function isFilterTab(value: string): value is FilterTab {
+  return ["all", "leads", "engaged", "custom"].includes(value);
+}
+
 export default function AdminPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-[var(--kognitos-black)]">
+          <div className="text-[var(--kognitos-gray-400)]">Loading...</div>
+        </div>
+      }
+    >
+      <AdminContent />
+    </Suspense>
+  );
+}
+
+function AdminContent() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Read initial state from URL
+  const initialFilter = searchParams.get("filter");
+  const initialSearch = searchParams.get("search") || "";
+  const initialPage = parseInt(searchParams.get("page") || "1", 10);
+  const initialSessionId = searchParams.get("session") || null;
 
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
+  const [page, setPage] = useState(initialPage);
   const [totalPages, setTotalPages] = useState(1);
-  const [search, setSearch] = useState("");
-  const [searchInput, setSearchInput] = useState("");
-  const [filter, setFilter] = useState<FilterTab>("all");
+  const [search, setSearch] = useState(initialSearch);
+  const [searchInput, setSearchInput] = useState(initialSearch);
+  const [filter, setFilter] = useState<FilterTab>(
+    initialFilter && isFilterTab(initialFilter) ? initialFilter : "all"
+  );
   const [loading, setLoading] = useState(true);
   const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(
     null
   );
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
+
+  // Sync state to URL
+  const updateUrl = useCallback(
+    (params: {
+      filter?: FilterTab;
+      search?: string;
+      page?: number;
+      sessionId?: string | null;
+    }) => {
+      const url = new URLSearchParams();
+      const f = params.filter ?? filter;
+      const s = params.search ?? search;
+      const p = params.page ?? page;
+      const sid = params.sessionId !== undefined ? params.sessionId : selectedSession?.session.id || null;
+
+      if (f !== "all") url.set("filter", f);
+      if (s) url.set("search", s);
+      if (p > 1) url.set("page", p.toString());
+      if (sid) url.set("session", sid);
+
+      const qs = url.toString();
+      router.replace(`/admin${qs ? `?${qs}` : ""}`, { scroll: false });
+    },
+    [filter, search, page, selectedSession, router]
+  );
 
   // Redirect to login if not authenticated
   useEffect(() => {
@@ -119,12 +173,21 @@ export default function AdminPage() {
     }
   }, [status, fetchSessions]);
 
+  // Auto-open session from URL on initial load
+  useEffect(() => {
+    if (status === "authenticated" && initialSessionId && !selectedSession) {
+      fetchSessionDetail(initialSessionId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, initialSessionId]);
+
   const fetchSessionDetail = async (id: string) => {
     setLoadingDetail(true);
     try {
       const res = await fetch(`/api/admin/sessions/${id}`);
       const data = await res.json();
       setSelectedSession(data);
+      updateUrl({ sessionId: id });
     } catch (err) {
       console.error("Failed to fetch session detail:", err);
     } finally {
@@ -136,12 +199,31 @@ export default function AdminPage() {
     e.preventDefault();
     setPage(1);
     setSearch(searchInput);
+    updateUrl({ search: searchInput, page: 1 });
   };
 
   const handleFilterChange = (tab: FilterTab) => {
     setFilter(tab);
     setPage(1);
     setSelectedSession(null);
+    updateUrl({ filter: tab, page: 1, sessionId: null });
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    updateUrl({ page: newPage });
+  };
+
+  const handleCloseDetail = () => {
+    setSelectedSession(null);
+    updateUrl({ sessionId: null });
+  };
+
+  const handleClearSearch = () => {
+    setSearchInput("");
+    setSearch("");
+    setPage(1);
+    updateUrl({ search: "", page: 1 });
   };
 
   const formatDate = (dateStr: string) => {
@@ -261,11 +343,7 @@ export default function AdminPage() {
             {search && (
               <button
                 type="button"
-                onClick={() => {
-                  setSearchInput("");
-                  setSearch("");
-                  setPage(1);
-                }}
+                onClick={handleClearSearch}
                 className="px-3 py-2 text-sm text-[var(--kognitos-gray-400)] hover:text-[var(--kognitos-white)] transition-colors"
               >
                 Clear
@@ -277,7 +355,8 @@ export default function AdminPage() {
         {/* Showing count */}
         <p className="text-sm text-[var(--kognitos-gray-400)] mb-4">
           {total} session{total !== 1 ? "s" : ""}
-          {filter !== "all" && ` in ${FILTER_TABS.find((t) => t.key === filter)?.label}`}
+          {filter !== "all" &&
+            ` in ${FILTER_TABS.find((t) => t.key === filter)?.label}`}
           {search && ` matching "${search}"`}
         </p>
 
@@ -354,9 +433,16 @@ export default function AdminPage() {
                               </p>
                             )}
                           </div>
-                          <span className="text-xs text-[var(--kognitos-gray-600)] flex-shrink-0 whitespace-nowrap">
-                            {formatDate(s.started_at)}
-                          </span>
+                          <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
+                            <span className="text-xs text-[var(--kognitos-gray-600)] whitespace-nowrap">
+                              {formatDate(s.started_at)}
+                            </span>
+                            {s.location && (
+                              <span className="text-[10px] text-[var(--kognitos-gray-600)]">
+                                {s.location}
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </button>
                     );
@@ -367,7 +453,7 @@ export default function AdminPage() {
                 {totalPages > 1 && (
                   <div className="flex items-center justify-center gap-2 mt-6">
                     <button
-                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      onClick={() => handlePageChange(Math.max(1, page - 1))}
                       disabled={page === 1}
                       className="px-3 py-1.5 text-sm rounded-lg border border-[var(--kognitos-gray-700)] text-[var(--kognitos-gray-400)] hover:text-[var(--kognitos-white)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                     >
@@ -378,7 +464,7 @@ export default function AdminPage() {
                     </span>
                     <button
                       onClick={() =>
-                        setPage((p) => Math.min(totalPages, p + 1))
+                        handlePageChange(Math.min(totalPages, page + 1))
                       }
                       disabled={page === totalPages}
                       className="px-3 py-1.5 text-sm rounded-lg border border-[var(--kognitos-gray-700)] text-[var(--kognitos-gray-400)] hover:text-[var(--kognitos-white)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
@@ -413,12 +499,15 @@ export default function AdminPage() {
                   </div>
                   <p className="text-xs text-[var(--kognitos-gray-400)] mt-0.5">
                     {formatDate(selectedSession.session.started_at)}
-                    {selectedSession.session.ip_address &&
-                      ` -- ${selectedSession.session.ip_address}`}
+                    {selectedSession.session.location
+                      ? ` -- ${selectedSession.session.location}`
+                      : selectedSession.session.ip_address
+                        ? ` -- ${selectedSession.session.ip_address}`
+                        : ""}
                   </p>
                 </div>
                 <button
-                  onClick={() => setSelectedSession(null)}
+                  onClick={handleCloseDetail}
                   className="p-1.5 rounded-lg hover:bg-[var(--kognitos-gray-800)] text-[var(--kognitos-gray-400)] hover:text-[var(--kognitos-white)] transition-colors"
                 >
                   <svg
