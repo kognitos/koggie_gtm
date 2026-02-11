@@ -17,15 +17,28 @@ export function ChatContainer() {
   const sessionIdRef = useRef<string | null>(null);
   const emailRef = useRef<string | null>(null);
 
-  // Read email from URL query param on mount (?u=base64-encoded-email)
+  // Read email from URL ?u= param (base64), persist in sessionStorage, then strip from URL
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const encoded = params.get("u");
     if (encoded) {
       try {
-        emailRef.current = atob(encoded);
+        const decoded = atob(encoded);
+        emailRef.current = decoded;
+        sessionStorage.setItem("knox_email", decoded);
       } catch {
         // Invalid base64, ignore
+      }
+      // Strip ?u= from the visible URL
+      params.delete("u");
+      const clean = params.toString();
+      const newUrl = window.location.pathname + (clean ? `?${clean}` : "");
+      window.history.replaceState({}, "", newUrl);
+    } else {
+      // No param — check sessionStorage for a previous visit
+      const stored = sessionStorage.getItem("knox_email");
+      if (stored) {
+        emailRef.current = stored;
       }
     }
   }, []);
