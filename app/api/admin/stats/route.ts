@@ -31,31 +31,57 @@ export async function GET() {
       .from("leads")
       .select("id", { count: "exact", head: true });
 
-    // Engaged sessions (6+ messages)
-    // Get message counts per session, then count those >= threshold
+    // Sessions today
+    const todayCutoff = new Date();
+    todayCutoff.setHours(0, 0, 0, 0);
+    const { count: sessionsToday } = await supabase
+      .from("chat_sessions")
+      .select("id", { count: "exact", head: true })
+      .gte("started_at", todayCutoff.toISOString());
+
+    // Message counts per session (for engaged count + avg calculation)
     const { data: sessionMsgCounts } = await supabase
       .from("chat_messages")
       .select("session_id");
 
-    // Count messages per session
     const msgCountMap = new Map<string, number>();
     for (const row of sessionMsgCounts || []) {
       if (row.session_id) {
-        msgCountMap.set(row.session_id, (msgCountMap.get(row.session_id) || 0) + 1);
+        msgCountMap.set(
+          row.session_id,
+          (msgCountMap.get(row.session_id) || 0) + 1
+        );
       }
     }
+
     const engagedSessions = Array.from(msgCountMap.values()).filter(
       (c) => c >= ENGAGED_MESSAGE_THRESHOLD
     ).length;
 
-    // Custom starts: sessions where first user message is not a suggestion
+    // Avg messages per session
+    const totalMessages = Array.from(msgCountMap.values()).reduce(
+      (sum, c) => sum + c,
+      0
+    );
+    const sessionsWithMessages = msgCountMap.size;
+    const avgMessages =
+      sessionsWithMessages > 0
+        ? Math.round((totalMessages / sessionsWithMessages) * 10) / 10
+        : 0;
+
+    // Conversion rate
+    const conversionRate =
+      totalSessions && totalSessions > 0
+        ? Math.round(((totalLeads || 0) / totalSessions) * 1000) / 10
+        : 0;
+
+    // Custom starts
     const { data: allSessions } = await supabase
       .from("chat_sessions")
       .select("id");
 
     let customStarts = 0;
     if (allSessions && allSessions.length > 0) {
-      // Fetch first user message for each session in parallel (batched)
       const batchSize = 50;
       for (let i = 0; i < allSessions.length; i += batchSize) {
         const batch = allSessions.slice(i, i + batchSize);
@@ -73,7 +99,12 @@ export async function GET() {
           })
         );
         for (const content of results) {
-          if (content && !SUGGESTION_TEXTS.includes(content as typeof SUGGESTION_TEXTS[number])) {
+          if (
+            content &&
+            !SUGGESTION_TEXTS.includes(
+              content as (typeof SUGGESTION_TEXTS)[number]
+            )
+          ) {
             customStarts++;
           }
         }
@@ -86,6 +117,9 @@ export async function GET() {
         totalLeads: totalLeads || 0,
         engagedSessions,
         customStarts,
+        sessionsToday: sessionsToday || 0,
+        avgMessages,
+        conversionRate,
       }),
       {
         status: 200,

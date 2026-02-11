@@ -17,12 +17,16 @@ export function ChatContainer() {
   const sessionIdRef = useRef<string | null>(null);
   const emailRef = useRef<string | null>(null);
 
-  // Read email from URL query param on mount
+  // Read email from URL query param on mount (?u=base64-encoded-email)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const email = params.get("email");
-    if (email) {
-      emailRef.current = email;
+    const encoded = params.get("u");
+    if (encoded) {
+      try {
+        emailRef.current = atob(encoded);
+      } catch {
+        // Invalid base64, ignore
+      }
     }
   }, []);
 
