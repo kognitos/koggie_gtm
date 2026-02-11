@@ -2,7 +2,7 @@
 
 import { useSession, signOut } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, useCallback, Suspense } from "react";
+import { useEffect, useState, useCallback, useRef, Suspense } from "react";
 
 interface SessionSummary {
   id: string;
@@ -52,6 +52,13 @@ interface Stats {
 type FilterTab = "all" | "leads" | "engaged" | "custom";
 type SortOption = "" | "newest" | "oldest" | "most_messages" | "fewest_messages";
 type DaysOption = "" | "1" | "7" | "30";
+type SearchScope = "all" | "user" | "assistant";
+
+const SEARCH_SCOPES: { value: SearchScope; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "user", label: "User" },
+  { value: "assistant", label: "AI" },
+];
 
 const FILTER_TABS: { key: FilterTab; label: string; statKey: keyof Stats }[] = [
   { key: "all", label: "All", statKey: "totalSessions" },
@@ -100,59 +107,63 @@ function AdminContent() {
 
   const initialFilter = searchParams.get("filter");
   const initialSearch = searchParams.get("search") || "";
-  const initialPage = parseInt(searchParams.get("page") || "1", 10);
   const initialSessionId = searchParams.get("session") || null;
   const initialSort = (searchParams.get("sort") || "") as SortOption;
   const initialDays = (searchParams.get("days") || "") as DaysOption;
+  const initialSearchScope = (searchParams.get("searchScope") || "all") as SearchScope;
 
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(initialPage);
-  const [totalPages, setTotalPages] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
   const [search, setSearch] = useState(initialSearch);
   const [searchInput, setSearchInput] = useState(initialSearch);
+  const [searchScope, setSearchScope] = useState<SearchScope>(initialSearchScope);
   const [filter, setFilter] = useState<FilterTab>(
     initialFilter && isFilterTab(initialFilter) ? initialFilter : "all"
   );
   const [sort, setSort] = useState<SortOption>(initialSort);
   const [days, setDays] = useState<DaysOption>(initialDays);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selectedSession, setSelectedSession] = useState<SessionDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [stats, setStats] = useState<Stats | null>(null);
+
+  const pageRef = useRef(1);
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   // Sync state to URL
   const updateUrl = useCallback(
     (params: {
       filter?: FilterTab;
       search?: string;
-      page?: number;
       sessionId?: string | null;
       sort?: SortOption;
       days?: DaysOption;
+      searchScope?: SearchScope;
     }) => {
       const url = new URLSearchParams();
       const f = params.filter ?? filter;
       const s = params.search ?? search;
-      const p = params.page ?? page;
       const sid =
         params.sessionId !== undefined
           ? params.sessionId
           : selectedSession?.session.id || null;
       const so = params.sort ?? sort;
       const d = params.days ?? days;
+      const sc = params.searchScope ?? searchScope;
 
       if (f !== "all") url.set("filter", f);
       if (s) url.set("search", s);
-      if (p > 1) url.set("page", p.toString());
       if (sid) url.set("session", sid);
       if (so) url.set("sort", so);
       if (d) url.set("days", d);
+      if (sc !== "all") url.set("searchScope", sc);
 
       const qs = url.toString();
       router.replace(`/admin${qs ? `?${qs}` : ""}`, { scroll: false });
     },
-    [filter, search, page, selectedSession, sort, days, router]
+    [filter, search, selectedSession, sort, days, searchScope, router]
   );
 
   useEffect(() => {
@@ -171,44 +182,80 @@ function AdminContent() {
       .catch(() => {});
   }, [status]);
 
-  const fetchSessions = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams();
-      if (search) params.set("search", search);
-      if (filter !== "all") params.set("filter", filter);
-      if (sort) params.set("sort", sort);
-      if (days) params.set("days", days);
-      params.set("page", page.toString());
-
-      const res = await fetch(`/api/admin/sessions?${params}`);
-      if (res.status === 401) {
-        router.push("/admin/login");
-        return;
+  const fetchSessions = useCallback(
+    async (pageNum: number, append: boolean) => {
+      if (append) {
+        setLoadingMore(true);
+      } else {
+        setLoading(true);
       }
-      const data = await res.json();
-      setSessions(data.sessions || []);
-      setTotal(data.total || 0);
-      setTotalPages(data.totalPages || 1);
-    } catch (err) {
-      console.error("Failed to fetch sessions:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [search, filter, sort, days, page, router]);
+      try {
+        const params = new URLSearchParams();
+        if (search) params.set("search", search);
+        if (search && searchScope !== "all") params.set("searchScope", searchScope);
+        if (filter !== "all") params.set("filter", filter);
+        if (sort) params.set("sort", sort);
+        if (days) params.set("days", days);
+        params.set("page", pageNum.toString());
 
+        const res = await fetch(`/api/admin/sessions?${params}`);
+        if (res.status === 401) {
+          router.push("/admin/login");
+          return;
+        }
+        const data = await res.json();
+        const newSessions: SessionSummary[] = data.sessions || [];
+
+        if (append) {
+          setSessions((prev) => [...prev, ...newSessions]);
+        } else {
+          setSessions(newSessions);
+        }
+        setTotal(data.total || 0);
+        setHasMore(data.hasMore ?? false);
+        pageRef.current = pageNum;
+      } catch (err) {
+        console.error("Failed to fetch sessions:", err);
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [search, searchScope, filter, sort, days, router]
+  );
+
+  // Fetch page 1 when filters change
   useEffect(() => {
     if (status === "authenticated") {
-      fetchSessions();
+      pageRef.current = 1;
+      fetchSessions(1, false);
     }
   }, [status, fetchSessions]);
 
+  // Auto-open session detail from URL
   useEffect(() => {
     if (status === "authenticated" && initialSessionId && !selectedSession) {
       fetchSessionDetail(initialSessionId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, initialSessionId]);
+
+  // Infinite scroll via IntersectionObserver
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !loadingMore && !loading) {
+          fetchSessions(pageRef.current + 1, true);
+        }
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [hasMore, loadingMore, loading, fetchSessions]);
 
   const fetchSessionDetail = async (id: string) => {
     setLoadingDetail(true);
@@ -226,33 +273,24 @@ function AdminContent() {
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
-    setPage(1);
     setSearch(searchInput);
-    updateUrl({ search: searchInput, page: 1 });
+    updateUrl({ search: searchInput, searchScope });
   };
 
   const handleFilterChange = (tab: FilterTab) => {
     setFilter(tab);
-    setPage(1);
     setSelectedSession(null);
-    updateUrl({ filter: tab, page: 1, sessionId: null });
+    updateUrl({ filter: tab, sessionId: null });
   };
 
   const handleSortChange = (newSort: SortOption) => {
     setSort(newSort);
-    setPage(1);
-    updateUrl({ sort: newSort, page: 1 });
+    updateUrl({ sort: newSort });
   };
 
   const handleDaysChange = (newDays: DaysOption) => {
     setDays(newDays);
-    setPage(1);
-    updateUrl({ days: newDays, page: 1 });
-  };
-
-  const handlePageChange = (newPage: number) => {
-    setPage(newPage);
-    updateUrl({ page: newPage });
+    updateUrl({ days: newDays });
   };
 
   const handleCloseDetail = () => {
@@ -263,8 +301,7 @@ function AdminContent() {
   const handleClearSearch = () => {
     setSearchInput("");
     setSearch("");
-    setPage(1);
-    updateUrl({ search: "", page: 1 });
+    updateUrl({ search: "" });
   };
 
   const handleExportCsv = () => {
@@ -382,7 +419,7 @@ function AdminContent() {
                 </button>
               ))}
             </div>
-            <form onSubmit={handleSearch} className="flex gap-2">
+            <form onSubmit={handleSearch} className="flex items-center gap-2">
               <input
                 type="text"
                 value={searchInput}
@@ -390,6 +427,22 @@ function AdminContent() {
                 placeholder="Search emails and messages..."
                 className="px-4 py-2 bg-[var(--kognitos-gray-900)] border border-[var(--kognitos-gray-700)] rounded-lg text-sm text-[var(--kognitos-white)] placeholder-[var(--kognitos-gray-600)] focus:outline-none focus:border-[var(--kognitos-yellow)] w-72"
               />
+              <div className="flex items-center gap-0.5 bg-[var(--kognitos-gray-900)] rounded-lg p-0.5 border border-[var(--kognitos-gray-700)]">
+                {SEARCH_SCOPES.map((sc) => (
+                  <button
+                    key={sc.value}
+                    type="button"
+                    onClick={() => setSearchScope(sc.value)}
+                    className={`px-2 py-1.5 text-xs rounded-md transition-colors ${
+                      searchScope === sc.value
+                        ? "bg-[var(--kognitos-gray-700)] text-[var(--kognitos-white)] font-medium"
+                        : "text-[var(--kognitos-gray-400)] hover:text-[var(--kognitos-white)]"
+                    }`}
+                  >
+                    {sc.label}
+                  </button>
+                ))}
+              </div>
               <button type="submit" className="px-4 py-2 bg-[var(--kognitos-yellow)] text-[var(--kognitos-black)] text-sm font-medium rounded-lg hover:bg-[var(--kognitos-yellow-dim)] transition-colors">
                 Search
               </button>
@@ -404,7 +457,6 @@ function AdminContent() {
           {/* Date range + sort + export row */}
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-4">
-              {/* Date range */}
               <div className="flex items-center gap-1">
                 {DAYS_OPTIONS.map((opt) => (
                   <button
@@ -420,8 +472,6 @@ function AdminContent() {
                   </button>
                 ))}
               </div>
-
-              {/* Sort */}
               <select
                 value={sort}
                 onChange={(e) => handleSortChange(e.target.value as SortOption)}
@@ -471,68 +521,71 @@ function AdminContent() {
                 </p>
               </div>
             ) : (
-              <>
-                <div className="space-y-2">
-                  {sessions.map((s) => {
-                    const displayName = s.lead_email || s.email;
-                    const hasLead = !!s.lead_email;
-                    const isSelected = selectedSession?.session.id === s.id;
+              <div className="space-y-2">
+                {sessions.map((s) => {
+                  const displayName = s.lead_email || s.email;
+                  const hasLead = !!s.lead_email;
+                  const isSelected = selectedSession?.session.id === s.id;
 
-                    return (
-                      <button
-                        key={s.id}
-                        onClick={() => fetchSessionDetail(s.id)}
-                        className={`w-full text-left p-4 rounded-xl border transition-colors ${
-                          isSelected
-                            ? "bg-[var(--kognitos-gray-800)] border-[var(--kognitos-yellow)]"
-                            : hasLead
-                              ? "bg-[var(--kognitos-gray-900)] border-[var(--kognitos-yellow)]/40 hover:border-[var(--kognitos-yellow)]"
-                              : "bg-[var(--kognitos-gray-900)] border-[var(--kognitos-gray-700)] hover:border-[var(--kognitos-gray-600)]"
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              {displayName ? (
-                                <span className={`text-sm font-medium truncate ${hasLead ? "text-[var(--kognitos-yellow)]" : "text-[var(--kognitos-white)]"}`}>
-                                  {displayName}
-                                </span>
-                              ) : (
-                                <span className="text-sm text-[var(--kognitos-gray-600)] italic">Anonymous</span>
-                              )}
-                              {hasLead && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--kognitos-yellow)]/15 text-[var(--kognitos-yellow)] flex-shrink-0 font-medium">Lead</span>
-                              )}
-                              <span className="text-xs text-[var(--kognitos-gray-600)] flex-shrink-0">
-                                {s.message_count} msg{s.message_count !== 1 ? "s" : ""}
+                  return (
+                    <button
+                      key={s.id}
+                      onClick={() => fetchSessionDetail(s.id)}
+                      className={`w-full text-left p-4 rounded-xl border transition-colors ${
+                        isSelected
+                          ? "bg-[var(--kognitos-gray-800)] border-[var(--kognitos-yellow)]"
+                          : hasLead
+                            ? "bg-[var(--kognitos-gray-900)] border-[var(--kognitos-yellow)]/40 hover:border-[var(--kognitos-yellow)]"
+                            : "bg-[var(--kognitos-gray-900)] border-[var(--kognitos-gray-700)] hover:border-[var(--kognitos-gray-600)]"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            {displayName ? (
+                              <span className={`text-sm font-medium truncate ${hasLead ? "text-[var(--kognitos-yellow)]" : "text-[var(--kognitos-white)]"}`}>
+                                {displayName}
                               </span>
-                            </div>
-                            {s.preview && (
-                              <p className="text-sm text-[var(--kognitos-gray-400)] truncate">{s.preview}</p>
+                            ) : (
+                              <span className="text-sm text-[var(--kognitos-gray-600)] italic">Anonymous</span>
                             )}
+                            {hasLead && (
+                              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--kognitos-yellow)]/15 text-[var(--kognitos-yellow)] flex-shrink-0 font-medium">Lead</span>
+                            )}
+                            <span className="text-xs text-[var(--kognitos-gray-600)] flex-shrink-0">
+                              {s.message_count} msg{s.message_count !== 1 ? "s" : ""}
+                            </span>
                           </div>
-                          <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
-                            <span className="text-xs text-[var(--kognitos-gray-600)] whitespace-nowrap">{formatDate(s.started_at)}</span>
-                            {s.location && <span className="text-[10px] text-[var(--kognitos-gray-600)]">{s.location}</span>}
-                          </div>
+                          {s.preview && (
+                            <p className="text-sm text-[var(--kognitos-gray-400)] truncate">{s.preview}</p>
+                          )}
                         </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                        <div className="flex flex-col items-end flex-shrink-0 gap-0.5">
+                          <span className="text-xs text-[var(--kognitos-gray-600)] whitespace-nowrap">{formatDate(s.started_at)}</span>
+                          {s.location && <span className="text-[10px] text-[var(--kognitos-gray-600)]">{s.location}</span>}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
 
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-center gap-2 mt-6">
-                    <button onClick={() => handlePageChange(Math.max(1, page - 1))} disabled={page === 1} className="px-3 py-1.5 text-sm rounded-lg border border-[var(--kognitos-gray-700)] text-[var(--kognitos-gray-400)] hover:text-[var(--kognitos-white)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                      Previous
-                    </button>
-                    <span className="text-sm text-[var(--kognitos-gray-400)]">Page {page} of {totalPages}</span>
-                    <button onClick={() => handlePageChange(Math.min(totalPages, page + 1))} disabled={page === totalPages} className="px-3 py-1.5 text-sm rounded-lg border border-[var(--kognitos-gray-700)] text-[var(--kognitos-gray-400)] hover:text-[var(--kognitos-white)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
-                      Next
-                    </button>
+                {/* Infinite scroll sentinel */}
+                <div ref={sentinelRef} className="h-1" />
+
+                {loadingMore && (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="text-sm text-[var(--kognitos-gray-400)]">Loading more...</div>
                   </div>
                 )}
-              </>
+
+                {!hasMore && sessions.length > 0 && (
+                  <div className="flex items-center justify-center py-4">
+                    <div className="text-xs text-[var(--kognitos-gray-600)]">
+                      Showing all {sessions.length} of {total} session{total !== 1 ? "s" : ""}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
           </div>
 

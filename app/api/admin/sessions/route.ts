@@ -37,135 +37,153 @@ export async function GET(request: NextRequest) {
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search") || "";
+  const searchScope = searchParams.get("searchScope") || "all"; // all | user | assistant
   const filter = searchParams.get("filter") || "all";
-  const sort = searchParams.get("sort") || ""; // newest | oldest | most_messages | fewest_messages
-  const days = searchParams.get("days") || ""; // 1 | 7 | 30 | "" (all time)
+  const sort = searchParams.get("sort") || "";
+  const days = searchParams.get("days") || "";
   const page = parseInt(searchParams.get("page") || "1", 10);
   const limit = 25;
 
   try {
-    // Pre-fetch lead session IDs
-    let leadSessionIdSet = new Set<string>();
-    if (filter === "leads" || filter === "all") {
-      const { data: allLeads } = await supabase
-        .from("leads")
-        .select("session_id");
-      for (const l of allLeads || []) {
-        if (l.session_id) leadSessionIdSet.add(l.session_id);
+    // ---------- 1. Batch-fetch all leads (one query) ----------
+    const { data: allLeads } = await supabase
+      .from("leads")
+      .select("session_id, email, source");
+
+    const leadMap = new Map<
+      string,
+      { email: string; source: string }
+    >();
+    const leadSessionIdSet = new Set<string>();
+    for (const l of allLeads || []) {
+      if (l.session_id) {
+        leadSessionIdSet.add(l.session_id);
+        leadMap.set(l.session_id, { email: l.email, source: l.source });
       }
     }
 
-    // Build base query
+    // ---------- 2. Build sessions query ----------
     let query = supabase
       .from("chat_sessions")
       .select(
-        "id, ip_address, email, started_at, last_message_at, message_count, metadata",
-        { count: "exact" }
+        "id, ip_address, email, started_at, last_message_at, message_count, metadata"
       )
       .order("started_at", { ascending: false });
 
-    // Date range filter
+    // Date range
     if (days && !isNaN(parseInt(days))) {
       const cutoff = new Date();
       cutoff.setDate(cutoff.getDate() - parseInt(days));
       query = query.gte("started_at", cutoff.toISOString());
     }
 
-    // For leads filter, restrict to lead session IDs
+    // Leads-only filter
     if (filter === "leads") {
       if (leadSessionIdSet.size === 0) {
         return new Response(
-          JSON.stringify({ sessions: [], total: 0, page, totalPages: 0 }),
+          JSON.stringify({ sessions: [], total: 0, page, totalPages: 0, hasMore: false }),
           { status: 200, headers: { "Content-Type": "application/json" } }
         );
       }
       query = query.in("id", Array.from(leadSessionIdSet));
     }
 
-    // Search: find matching session IDs from emails + leads + message content
-    let searchSessionIds = new Set<string>();
+    // Search: collect matching session IDs from leads + messages in parallel
     if (search) {
-      // Search lead emails
-      const { data: matchingLeads } = await supabase
-        .from("leads")
-        .select("session_id")
-        .ilike("email", `%${search}%`);
-      for (const l of matchingLeads || []) {
-        if (l.session_id) searchSessionIds.add(l.session_id);
-      }
-
-      // Search message content
-      const { data: matchingMessages } = await supabase
+      // Build message search query with optional role filter
+      let msgQuery = supabase
         .from("chat_messages")
         .select("session_id")
         .ilike("content", `%${search}%`);
-      for (const m of matchingMessages || []) {
-        if (m.session_id) searchSessionIds.add(m.session_id);
+      if (searchScope === "user" || searchScope === "assistant") {
+        msgQuery = msgQuery.eq("role", searchScope);
       }
 
-      // Build OR filter: email matches OR session ID is in the set
-      if (searchSessionIds.size > 0) {
+      const [{ data: matchingLeads }, { data: matchingMessages }] =
+        await Promise.all([
+          supabase
+            .from("leads")
+            .select("session_id")
+            .ilike("email", `%${search}%`),
+          msgQuery,
+        ]);
+
+      const searchIds = new Set<string>();
+      for (const l of matchingLeads || []) {
+        if (l.session_id) searchIds.add(l.session_id);
+      }
+      for (const m of matchingMessages || []) {
+        if (m.session_id) searchIds.add(m.session_id);
+      }
+
+      if (searchIds.size > 0) {
         query = query.or(
-          `email.ilike.%${search}%,id.in.(${Array.from(searchSessionIds).join(",")})`
+          `email.ilike.%${search}%,id.in.(${Array.from(searchIds).join(",")})`
         );
       } else {
         query = query.ilike("email", `%${search}%`);
       }
     }
 
-    // Fetch up to 500 for client-side filtering
+    // Fetch up to 500
     query = query.range(0, 499);
 
     const { data: rawSessions, error } = await query;
     if (error) throw error;
 
-    // Enrich sessions
-    const enriched: EnrichedSession[] = await Promise.all(
-      (rawSessions || []).map(async (s) => {
-        const { data: firstMsg } = await supabase
+    const sessionIds = (rawSessions || []).map((s) => s.id);
+
+    // ---------- 3. Batch-fetch first user messages (one query) ----------
+    // We use an RPC-like approach: fetch the earliest user message per session
+    // by fetching all user messages for these sessions, then picking the first per session.
+    // For up to 500 sessions this is much faster than 500 individual queries.
+    let firstMsgMap = new Map<string, string>();
+    if (sessionIds.length > 0) {
+      // Fetch in chunks of 200 session IDs to stay within URL limits
+      const chunkSize = 200;
+      for (let i = 0; i < sessionIds.length; i += chunkSize) {
+        const chunk = sessionIds.slice(i, i + chunkSize);
+        const { data: userMsgs } = await supabase
           .from("chat_messages")
-          .select("content")
-          .eq("session_id", s.id)
+          .select("session_id, content, created_at")
+          .in("session_id", chunk)
           .eq("role", "user")
-          .order("created_at", { ascending: true })
-          .limit(1)
-          .single();
+          .order("created_at", { ascending: true });
 
-        const { count: msgCount } = await supabase
-          .from("chat_messages")
-          .select("id", { count: "exact", head: true })
-          .eq("session_id", s.id);
+        for (const msg of userMsgs || []) {
+          // Only keep the first per session
+          if (msg.session_id && !firstMsgMap.has(msg.session_id)) {
+            firstMsgMap.set(msg.session_id, msg.content);
+          }
+        }
+      }
+    }
 
-        const { data: lead } = await supabase
-          .from("leads")
-          .select("email, source")
-          .eq("session_id", s.id)
-          .limit(1)
-          .single();
+    // ---------- 4. Enrich (no extra queries per session) ----------
+    const enriched: EnrichedSession[] = (rawSessions || []).map((s) => {
+      const lead = leadMap.get(s.id);
+      const firstContent = firstMsgMap.get(s.id) || null;
+      const metadata = s.metadata as Record<string, unknown> | null;
 
-        const firstContent = firstMsg?.content || null;
-        const metadata = s.metadata as Record<string, unknown> | null;
+      return {
+        id: s.id,
+        ip_address: s.ip_address,
+        email: s.email,
+        started_at: s.started_at,
+        last_message_at: s.last_message_at,
+        message_count: s.message_count || 0,
+        lead_email: lead?.email || null,
+        lead_source: lead?.source || null,
+        location: (metadata?.location as string) || null,
+        first_message: firstContent,
+        preview: firstContent
+          ? firstContent.slice(0, 120) +
+            (firstContent.length > 120 ? "..." : "")
+          : null,
+      };
+    });
 
-        return {
-          id: s.id,
-          ip_address: s.ip_address,
-          email: s.email,
-          started_at: s.started_at,
-          last_message_at: s.last_message_at,
-          message_count: msgCount || 0,
-          lead_email: lead?.email || null,
-          lead_source: lead?.source || null,
-          location: (metadata?.location as string) || null,
-          first_message: firstContent,
-          preview: firstContent
-            ? firstContent.slice(0, 120) +
-              (firstContent.length > 120 ? "..." : "")
-            : null,
-        };
-      })
-    );
-
-    // Apply filter
+    // ---------- 5. Filter ----------
     let filtered: EnrichedSession[];
     switch (filter) {
       case "leads":
@@ -189,7 +207,7 @@ export async function GET(request: NextRequest) {
         filtered = enriched;
     }
 
-    // Sort: user-selected sort overrides default smart sort
+    // ---------- 6. Sort ----------
     if (sort) {
       switch (sort) {
         case "newest":
@@ -224,7 +242,6 @@ export async function GET(request: NextRequest) {
           break;
       }
     } else {
-      // Default smart sort per filter
       switch (filter) {
         case "leads":
           filtered.sort(
@@ -257,17 +274,18 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Paginate
+    // ---------- 7. Paginate ----------
     const total = filtered.length;
     const totalPages = Math.ceil(total / limit);
     const offset = (page - 1) * limit;
     const paginated = filtered.slice(offset, offset + limit);
+    const hasMore = page < totalPages;
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const sessions = paginated.map(({ first_message: _, ...rest }) => rest);
 
     return new Response(
-      JSON.stringify({ sessions, total, page, totalPages }),
+      JSON.stringify({ sessions, total, page, totalPages, hasMore }),
       { status: 200, headers: { "Content-Type": "application/json" } }
     );
   } catch (error) {
